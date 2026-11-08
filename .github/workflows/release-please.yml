@@ -1,0 +1,51 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare release
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      # GITHUB_TOKEN does not trigger workflows through tag pushes or PR updates.
+      - name: Dispatch CI and publishing
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        with:
+          script: |
+            const repository = context.repo;
+            for (const pr of JSON.parse(process.env.RELEASE_PRS || '[]')) {
+              await github.rest.actions.createWorkflowDispatch({
+                ...repository,
+                workflow_id: 'ci.yml',
+                ref: pr.headBranchName,
+              });
+            }
+            if (process.env.RELEASE_CREATED === 'true') {
+              await github.rest.actions.createWorkflowDispatch({
+                ...repository,
+                workflow_id: 'release.yml',
+                ref: process.env.RELEASE_TAG,
+              });
+            }

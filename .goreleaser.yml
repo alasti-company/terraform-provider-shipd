@@ -24,6 +24,7 @@ checksum:
   extra_files:
     - glob: "terraform-provider-shipd_{{ .Version }}_manifest.json"
 release:
+  use_existing_draft: true
   extra_files:
     - glob: "terraform-provider-shipd_{{ .Version }}_manifest.json"
 before:
