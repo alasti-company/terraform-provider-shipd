@@ -42,8 +42,7 @@ func (d *lookupDataSource) Configure(_ context.Context, req datasource.Configure
 	configureClient(req.ProviderData, &d.client, &resp.Diagnostics)
 }
 func (d *lookupDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	// Use Config rather than previous state so a computed ID from an earlier read
-	// never takes precedence over a configured slug after a refresh.
+	// Read selectors from Config so each lookup uses the configured ID or slug.
 	var id, slug types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("id"), &id)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("slug"), &slug)...)

@@ -21,7 +21,8 @@ terraform {
   }
 }
 
-# Set SHIPD_API_KEY to an organization-wide service-account token.
+# Set SHIPD_API_KEY to a service-account token scoped to this configuration.
+# An organization-wide token is required to create projects.
 provider "shipd" {}
 ```
 

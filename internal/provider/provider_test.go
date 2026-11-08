@@ -56,12 +56,14 @@ data "shipd_environment" "by_id" {
 }
 func importEnvironment(s *terraform.State) (string, error) {
 	root := s.RootModule().Resources
-	return root["shipd_project.test"].Primary.ID + "/" + root["shipd_environment.test"].Primary.ID, nil
+	return " " + root["shipd_project.test"].Primary.ID + " / " + root["shipd_environment.test"].Primary.ID + " ", nil
 }
 func lifecycleSteps(first, updated string) []resource.TestStep {
 	return []resource.TestStep{
 		{Config: first, Check: resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr("shipd_environment.test", "type", "development"), resource.TestCheckResourceAttr("shipd_environment.test", "is_production", "false"), resource.TestCheckResourceAttrPair("data.shipd_project.by_slug", "id", "shipd_project.test", "id"), resource.TestCheckResourceAttrPair("data.shipd_environment.by_id", "id", "shipd_environment.test", "id"))},
-		{ResourceName: "shipd_project.test", ImportState: true, ImportStateVerify: true},
+		{ResourceName: "shipd_project.test", ImportState: true, ImportStateVerify: true, ImportStateIdFunc: func(s *terraform.State) (string, error) {
+			return " " + s.RootModule().Resources["shipd_project.test"].Primary.ID + " ", nil
+		}},
 		{ResourceName: "shipd_environment.test", ImportState: true, ImportStateIdFunc: importEnvironment, ImportStateVerify: true},
 		{Config: updated, Check: resource.ComposeTestCheckFunc(
 			resource.TestCheckResourceAttr("shipd_project.test", "name", "Updated"),
@@ -130,6 +132,8 @@ type fixture struct {
 	server                 *httptest.Server
 	projects, environments map[string]map[string]any
 	next                   int
+	conflictOperation      string
+	conflictCalls          int
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -196,6 +200,10 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(404)
 			return
 		}
+		if operation == f.conflictOperation {
+			f.conflictCalls++
+			item["version"] = item["version"].(int) + 1
+		}
 		if input["expectedVersion"] != float64(item["version"].(int)) {
 			w.WriteHeader(409)
 			return
@@ -213,4 +221,53 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(404)
 	}
+}
+
+func TestTerraformEmptyOrganizationGuard(t *testing.T) {
+	f := newFixture(t)
+	config := strings.ReplaceAll(lifecycleConfig(f.server.URL, "test-token", "guard-test", "Original"), `organization_id = "org-test"`, `organization_id = ""`)
+	resource.Test(t, resource.TestCase{IsUnitTest: true, ProtoV6ProviderFactories: factories(), Steps: []resource.TestStep{{Config: config, PlanOnly: true, ExpectError: regexp.MustCompile("Invalid organization_id")}}})
+}
+
+func TestTerraformConcurrentUpdate(t *testing.T) {
+	for _, operation := range []string{"project/update", "environment/updateWithoutHandoff"} {
+		t.Run(operation, func(t *testing.T) {
+			f := newFixture(t)
+			first := lifecycleConfig(f.server.URL, "test-token", "conflict-test", "Original")
+			updated := strings.Replace(first, `name = "Original"`, `name = "Changed"`, 1)
+			if strings.HasPrefix(operation, "environment/") {
+				updated = strings.Replace(first, `name = "Development"`, `name = "Changed"`, 1)
+			}
+			resource.Test(t, resource.TestCase{IsUnitTest: true, ProtoV6ProviderFactories: factories(), PreventPostDestroyRefresh: true, Steps: []resource.TestStep{
+				{Config: first},
+				{PreConfig: func() { f.mu.Lock(); defer f.mu.Unlock(); f.conflictOperation = operation }, Config: updated, ExpectError: regexp.MustCompile("shipd API 409")},
+				{PreConfig: func() {
+					f.mu.Lock()
+					defer f.mu.Unlock()
+					if f.conflictCalls != 1 {
+						t.Errorf("conflicting update attempted %d times", f.conflictCalls)
+					}
+					f.conflictOperation = ""
+				}, Config: updated},
+			}})
+		})
+	}
+}
+
+func TestTerraformCreateSecondProductionEnvironment(t *testing.T) {
+	f := newFixture(t)
+	config := lifecycleConfig(f.server.URL, "test-token", "production-test", "Updated")
+	second := config + `
+resource "shipd_environment" "second" {
+ project_id = shipd_project.test.id
+ name = "Second"
+ slug = "second"
+ is_production = true
+}
+`
+	resource.Test(t, resource.TestCase{IsUnitTest: true, ProtoV6ProviderFactories: factories(), PreventPostDestroyRefresh: true, Steps: []resource.TestStep{
+		{Config: config},
+		{Config: second, ExpectError: regexp.MustCompile("Production environment already exists")},
+		{Config: config},
+	}})
 }

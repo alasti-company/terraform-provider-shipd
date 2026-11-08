@@ -34,4 +34,4 @@ jobs:
       - run: go build ./...
       - run: terraform fmt -check -recursive examples
       - run: go tool tfplugindocs generate --provider-name shipd
-      - run: git diff --exit-code -- docs
+      - run: test -z "$(git status --porcelain --untracked-files=all -- docs)"

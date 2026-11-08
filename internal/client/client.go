@@ -37,7 +37,7 @@ func (e *APIError) Error() string {
 		message += " [request " + e.RequestID + "]"
 	}
 	if e.Status == 409 {
-		message += ". Refresh the plan before retrying; archived slugs may be reserved for seven days."
+		message += ". Refresh the plan before retrying. For slug conflicts, archived slugs may be reserved for seven days."
 	}
 	return message
 }

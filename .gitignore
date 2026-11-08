@@ -3,5 +3,7 @@
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfvars
+*.tfvars.json
 crash.log
 /terraform-provider-shipd_*_manifest.json

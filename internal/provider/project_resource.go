@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -78,7 +79,7 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	p, err := r.client.Project(ctx, data.ID.ValueString(), "")
-	if client.IsNotFound(err) {
+	if errors.Is(err, client.ErrNotFound) {
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -118,5 +119,5 @@ func (r *projectResource) ImportState(ctx context.Context, req resource.ImportSt
 		resp.Diagnostics.AddError("Invalid import ID", "Use the project ID.")
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), strings.TrimSpace(req.ID))...)
 }

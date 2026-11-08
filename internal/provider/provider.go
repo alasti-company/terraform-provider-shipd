@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"os"
+	"strings"
 )
 
 type shipdProvider struct{ version string }
@@ -56,6 +57,10 @@ func (p *shipdProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	orgID := os.Getenv("SHIPD_ORGANIZATION_ID")
 	if !config.OrganizationID.IsNull() {
 		orgID = config.OrganizationID.ValueString()
+		if strings.TrimSpace(orgID) == "" {
+			resp.Diagnostics.AddError("Invalid organization_id", "organization_id must not be empty when set. Omit it to use the environment variable or disable the organization guard.")
+			return
+		}
 	}
 	c, err := client.New(baseURL, token)
 	if err != nil {

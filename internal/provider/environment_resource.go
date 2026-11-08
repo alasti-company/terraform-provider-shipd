@@ -2,8 +2,10 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -57,6 +59,9 @@ func (r *environmentResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if data.IsProduction.ValueBool() && !r.checkProduction(ctx, data.ProjectID.ValueString(), "", &resp.Diagnostics) {
+		return
+	}
 	var e client.Environment
 	if err := r.client.RPC(ctx, "environment/create", map[string]any{"projectId": data.ProjectID.ValueString(), "name": data.Name.ValueString(), "slug": data.Slug.ValueString(), "type": data.Type.ValueString(), "isProduction": data.IsProduction.ValueBool()}, &e, true); err != nil {
 		resp.Diagnostics.AddError("Cannot create environment", err.Error())
@@ -71,7 +76,7 @@ func (r *environmentResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 	e, err := r.client.Environment(ctx, data.ProjectID.ValueString(), data.ID.ValueString(), "")
-	if client.IsNotFound(err) {
+	if errors.Is(err, client.ErrNotFound) {
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -90,16 +95,8 @@ func (r *environmentResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 	// Early feedback; the API also enforces this under the project lock.
 	if data.IsProduction.ValueBool() && !prior.IsProduction.ValueBool() {
-		items, err := r.client.Environments(ctx, prior.ProjectID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Cannot check production environment", err.Error())
+		if !r.checkProduction(ctx, prior.ProjectID.ValueString(), prior.ID.ValueString(), &resp.Diagnostics) {
 			return
-		}
-		for _, e := range items {
-			if e.IsProduction && e.ID != prior.ID.ValueString() {
-				resp.Diagnostics.AddError("Production environment already exists", "Demote the current production environment in a separate apply before promoting this environment.")
-				return
-			}
 		}
 	}
 	var e client.Environment
@@ -126,6 +123,22 @@ func (r *environmentResource) ImportState(ctx context.Context, req resource.Impo
 		resp.Diagnostics.AddError("Invalid import ID", "Use project_id/environment_id.")
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), strings.TrimSpace(parts[0]))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), strings.TrimSpace(parts[1]))...)
+}
+
+// Early feedback only; the API enforces exclusivity atomically.
+func (r *environmentResource) checkProduction(ctx context.Context, projectID, environmentID string, diagnostics *diag.Diagnostics) bool {
+	items, err := r.client.Environments(ctx, projectID)
+	if err != nil {
+		diagnostics.AddError("Cannot check production environment", err.Error())
+		return false
+	}
+	for _, existing := range items {
+		if existing.IsProduction && existing.ID != environmentID {
+			diagnostics.AddError("Production environment already exists", "Demote the current production environment in a separate apply before creating or promoting another production environment.")
+			return false
+		}
+	}
+	return true
 }
