@@ -112,3 +112,25 @@ func TestCompleteLargeListResponse(t *testing.T) {
 		t.Fatal("project list was truncated")
 	}
 }
+
+func TestLargeRetryAfterDoesNotOverflow(t *testing.T) {
+	for _, header := range []string{"31", "9223372036854775807", "9223372036854775808"} {
+		t.Run(header, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.Header().Set("Retry-After", header)
+				w.WriteHeader(http.StatusTooManyRequests)
+			}))
+			defer server.Close()
+			c, _ := New(server.URL, "secret")
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			err := c.RPC(ctx, "project/list", struct{}{}, nil, false)
+			var apiError *APIError
+			if calls != 1 || !errors.As(err, &apiError) || apiError.Status != http.StatusTooManyRequests {
+				t.Fatalf("calls %d, error %v", calls, err)
+			}
+		})
+	}
+}

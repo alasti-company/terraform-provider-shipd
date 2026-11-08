@@ -129,6 +129,9 @@ func (c *Client) RPC(ctx context.Context, operation string, input, output any, m
 				}
 				if header := res.Header.Get("Retry-After"); header != "" {
 					seconds, err := strconv.Atoi(header)
+					if errors.Is(err, strconv.ErrRange) || (err == nil && seconds > 30) {
+						return reqErr
+					}
 					if err == nil {
 						delay = time.Duration(seconds) * time.Second
 					} else if at, err := http.ParseTime(header); err == nil {

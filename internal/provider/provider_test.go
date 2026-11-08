@@ -173,6 +173,19 @@ func (f *fixture) serve(w http.ResponseWriter, r *http.Request) {
 		collection = f.environments
 		idField = "environmentId"
 	}
+	// Match the API's atomic production exclusivity check under the fixture lock.
+	if parts[0] == "environment" && input["isProduction"] == true && (parts[1] == "create" || parts[1] == "updateWithoutHandoff") {
+		projectID := input["projectId"]
+		if current := f.environments[fmt.Sprint(input["environmentId"])]; current != nil {
+			projectID = current["projectId"]
+		}
+		for _, existing := range f.environments {
+			if existing["projectId"] == projectID && existing["isProduction"] == true && existing["id"] != input["environmentId"] {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+		}
+	}
 	switch parts[1] {
 	case "list":
 		items := []map[string]any{}
