@@ -1,0 +1,7 @@
+/bin/
+/dist/
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+/terraform-provider-shipd_*_manifest.json
