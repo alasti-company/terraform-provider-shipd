@@ -1,14 +1,30 @@
 name: release
 
 on:
+  workflow_dispatch:
   push:
     tags: ["v*"]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  validate-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a version tag
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::error::Release must run at a version tag. Use gh workflow run release.yml --ref vX.Y.Z."
+            exit 1
+          fi
+
   ci:
+    needs: validate-ref
     uses: ./.github/workflows/ci.yml
 
   goreleaser:
