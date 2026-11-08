@@ -1,0 +1,42 @@
+version: 2
+project_name: terraform-provider-shipd
+builds:
+  - id: provider
+    env:
+      - CGO_ENABLED=0
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
+    ldflags:
+      - "-s -w -X main.version={{ .Version }}"
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+archives:
+  - formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  extra_files:
+    - glob: "terraform-provider-shipd_{{ .Version }}_manifest.json"
+release:
+  extra_files:
+    - glob: "terraform-provider-shipd_{{ .Version }}_manifest.json"
+before:
+  hooks:
+    - "go mod download"
+    - 'sh -c "cp terraform-registry-manifest.json terraform-provider-shipd_{{ .Version }}_manifest.json"'
+signs:
+  - artifacts: checksum
+    args:
+      - --batch
+      - --local-user
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - --output
+      - "${signature}"
+      - --detach-sign
+      - "${artifact}"

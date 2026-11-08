@@ -1,0 +1,1 @@
+terraform import shipd_environment.production PROJECT_ID/ENVIRONMENT_ID
