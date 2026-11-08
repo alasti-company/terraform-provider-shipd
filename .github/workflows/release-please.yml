@@ -35,17 +35,17 @@ jobs:
         with:
           script: |
             const repository = context.repo;
-            for (const pr of JSON.parse(process.env.RELEASE_PRS || '[]')) {
-              await github.rest.actions.createWorkflowDispatch({
-                ...repository,
-                workflow_id: 'ci.yml',
-                ref: pr.headBranchName,
-              });
-            }
             if (process.env.RELEASE_CREATED === 'true') {
               await github.rest.actions.createWorkflowDispatch({
                 ...repository,
                 workflow_id: 'release.yml',
                 ref: process.env.RELEASE_TAG,
+              });
+            }
+            for (const pr of JSON.parse(process.env.RELEASE_PRS || '[]')) {
+              await github.rest.actions.createWorkflowDispatch({
+                ...repository,
+                workflow_id: 'ci.yml',
+                ref: pr.headBranchName,
               });
             }
