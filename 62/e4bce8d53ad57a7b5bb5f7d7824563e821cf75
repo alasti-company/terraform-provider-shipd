@@ -1,0 +1,25 @@
+internal/provider/webhook_resource_test.go
+  s_9539ceba907d93::t_841baa4eddef68 11-13,122-143
+internal/client/webhook.go
+  s_9539ceba907d93::t_841baa4eddef68 7,37,70-71,76,82-87,112-113,115,120,122-124,126-129
+internal/client/webhook_test.go
+  s_9539ceba907d93::t_841baa4eddef68 66-91
+internal/provider/webhook_resource.go
+  s_9539ceba907d93::t_841baa4eddef68 73,240,254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "62e4bce8d53ad57a7b5bb5f7d7824563e821cf75",
+  "prompts": {},
+  "sessions": {
+    "s_9539ceba907d93": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f280-3033-7fc3-aa5f-87f9b6c7d35c",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
