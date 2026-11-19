@@ -1,0 +1,47 @@
+.release-please-manifest.json
+  s_0ed906beec84cc::t_3b3b33a4c83e12 2
+CHANGELOG.md
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-8
+examples/resources/shipd_snapshot_webhook/import.sh
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1
+internal/client/webhook_test.go
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-91
+examples/resources/shipd_snapshot_webhook/resource.tf
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-5
+internal/provider/webhook_resource.go
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-281
+internal/client/client.go
+  s_0ed906beec84cc::t_3b3b33a4c83e12 70-73,86,151-154
+internal/client/webhook.go
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-132
+examples/resources/shipd_event_webhook/import.sh
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1
+docs/index.md
+  ai_agent 5,10
+docs/resources/event_webhook.md
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-51
+examples/resources/shipd_event_webhook/resource.tf
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-7
+internal/provider/webhook_resource_test.go
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-144
+internal/provider/provider.go
+  ai_agent 30,91-92
+docs/resources/snapshot_webhook.md
+  s_0ed906beec84cc::t_3b3b33a4c83e12 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ff9aedd346c4a2d3320fd227b288fed40b604787",
+  "prompts": {},
+  "sessions": {
+    "s_0ed906beec84cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f281-501e-70e2-895d-bb666da5cebb",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
