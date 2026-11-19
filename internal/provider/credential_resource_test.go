@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,6 +44,7 @@ func TestTerraformCredentialRecovery(t *testing.T) {
 			t.Setenv("TF_LOG", "TRACE")
 			t.Setenv("TF_LOG_PATH", logPath)
 			t.Setenv("SHIPD_API_KEY", issuer)
+			t.Setenv("SHIPD_ORGANIZATION_ID", "")
 			t.Setenv("TF_VAR_credential", secret)
 
 			var mu sync.Mutex
@@ -57,13 +60,19 @@ func TestTerraformCredentialRecovery(t *testing.T) {
 				if r.Header.Get("x-api-key") != issuer {
 					t.Error("provider did not use bootstrap token")
 				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error("cannot read request body")
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 				var input map[string]any
-				if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				if err := json.Unmarshal(body, &input); err != nil {
 					t.Error("invalid request body")
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
-				if _, present := input["secret"]; present {
+				if bytes.Contains(body, []byte(secret)) {
 					t.Error("provider transmitted the plaintext credential")
 				}
 				if input["orgId"] != "org-test" {
@@ -107,7 +116,7 @@ func TestTerraformCredentialRecovery(t *testing.T) {
 			defer server.Close()
 
 			expiry := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-			config := func(name, secretInput string) string {
+			config := func(name, version, secretInput string) string {
 				return fmt.Sprintf(`
 provider "shipd" {
   api_url = %q
@@ -124,23 +133,27 @@ resource "shipd_%s" "test" {
   id              = %q
   name            = %q
   expires_at      = %q
+  secret_version  = %q
   secret_wo       = %s
   %s
 }
-`, server.URL, tc.name, id, name, expiry, secretInput, tc.fields)
+`, server.URL, tc.name, id, name, expiry, version, secretInput, tc.fields)
 			}
 			address := "shipd_" + tc.name + ".test"
-			initial := config("Workload", "var.credential")
+			initial := config("Workload", "store-version-1", "var.credential")
 			steps := []resource.TestStep{
 				{Config: initial, Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(address, "id", id),
 					resource.TestCheckResourceAttr(address, "revoked", "false"),
+					resource.TestCheckResourceAttr(address, "secret_version", "store-version-1"),
 					resource.TestCheckNoResourceAttr(address, "secret_wo"),
 					resource.TestCheckNoResourceAttr(address, "key"),
 				)},
-				{Config: config("Changed without new UUID", "var.credential"), PlanOnly: true,
+				{Config: config("Changed without new UUID", "store-version-1", "var.credential"), PlanOnly: true,
 					ExpectError: regexp.MustCompile("Credential configuration is immutable")},
-				{Config: config("Workload", "null")},
+				{Config: config("Workload", "store-version-2", "var.credential"), PlanOnly: true,
+					ExpectError: regexp.MustCompile("Credential configuration is immutable")},
+				{Config: config("Workload", "store-version-1", "null")},
 			}
 			if tc.droppedResponses == 3 {
 				steps = append([]resource.TestStep{{Config: initial,

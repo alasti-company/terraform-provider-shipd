@@ -139,11 +139,14 @@ appropriate prefix (`shipd_sdk_client_`, `shipd_sdk_server_`, or `shipd_sa_`).
 Append a dot and the first 32 lowercase hex characters of the SHA-256 digest
 of the organization ID. This binds the credential's lookup prefix to its
 organization.
-Supply the secret from the store through a sensitive, ephemeral variable and the
-`secret_wo` argument. Consumers load the same secret-store version after apply.
+Set `secret_version` to the nonsecret version identifier and supply the secret
+through a sensitive, ephemeral variable and the `secret_wo` argument. Consumers
+load the same secret-store version after apply. Terraform tracks the version
+identifier. Every new version needs a fresh UUID because Terraform cannot diff
+the write-only secret.
 
 The credential resources store IDs, names, bindings, scopes, expiry, SDK key
-type, and revocation status in state. They store no plaintext, key prefix, or
+type, the secret version identifier, and revocation status in state. They store no plaintext, key prefix, or
 hash and emit no secret outputs. Terraform's `sensitive` flag masks output.
 The ephemeral variable and write-only argument keep these inputs out of saved
 plans and state. Other resources or ordinary variables may persist their

@@ -13,6 +13,16 @@ Registers a workload token on an existing shipd service account. The token must 
 ## Example Usage
 
 ```terraform
+variable "worker_token_id" {
+  type        = string
+  description = "Generate a fresh UUIDv4 and retain it for this secret-store version."
+}
+
+variable "worker_token_version" {
+  type        = string
+  description = "Nonsecret, immutable version of the credential in your secret store."
+}
+
 variable "worker_token" {
   type      = string
   sensitive = true
@@ -21,13 +31,14 @@ variable "worker_token" {
 }
 
 resource "shipd_service_account_token" "worker" {
-  id                 = "ea76a78c-21a5-4e39-876a-27af888bf220"
+  id                 = var.worker_token_id
   organization_id    = "org-id"
   service_account_id = "service-account-id"
   project_id         = "project-id"
   name               = "Worker"
   scopes             = { project = ["read"] }
   expires_at         = var.worker_token_expiry
+  secret_version     = var.worker_token_version
   secret_wo          = var.worker_token
 }
 
@@ -46,6 +57,7 @@ variable "worker_token_expiry" {
 - `name` (String) The workload token's display name.
 - `organization_id` (String) Organization that owns the credential.
 - `scopes` (Map of Set of String) Explicit resource-to-verb scope map. The issuer must hold every requested scope.
+- `secret_version` (String) Nonsecret identifier of the immutable secret-store version. A change requires a fresh UUID and credential.
 - `service_account_id` (String) Service account that owns the workload token.
 
 ### Optional

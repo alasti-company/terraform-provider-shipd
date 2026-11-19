@@ -65,6 +65,10 @@ func (r *credentialResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		"expires_at": schema.StringAttribute{
 			Required: true, Description: "Expiry timestamp in RFC3339 format.",
 		},
+		"secret_version": schema.StringAttribute{
+			Required: true, Description: "Nonsecret identifier of the immutable secret-store version. A change requires a fresh UUID and credential.",
+			Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
+		},
 		"secret_wo": schema.StringAttribute{
 			Optional: true, Sensitive: true, WriteOnly: true,
 			Description: "Externally generated shipd credential with an organization tag. Required on creation and replacement. Supply it from a secret store through an ephemeral variable. Requires Terraform 1.11 or later.",
