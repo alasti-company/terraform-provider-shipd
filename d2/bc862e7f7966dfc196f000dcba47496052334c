@@ -1,0 +1,11 @@
+README.md
+  ai_agent 144-146,157-158
+internal/provider/credential_resource.go
+  ai_agent 302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d2bc862e7f7966dfc196f000dcba47496052334c",
+  "prompts": {}
+}
