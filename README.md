@@ -1,8 +1,10 @@
 # shipd Terraform provider
 
-Terraform provider for shipd projects, environments, service accounts, and
-webhooks, with imports, drift detection, and project and environment data sources.
-The provider address is `alasti-company/shipd`; it is not published yet.
+The Terraform provider at `alasti-company/shipd` manages projects, environments,
+service accounts, webhooks, SDK keys, and workload service account tokens. It
+also provides project and environment data sources. Credential resources require
+a provider release that includes them and a shipd API with credential
+registration support.
 
 ## Local installation
 
@@ -28,8 +30,8 @@ provider_installation {
 
 Point `TF_CLI_CONFIG_FILE` at that file. Use the configuration in
 [`examples/provider`](examples/provider) together with a resource example.
-With development overrides, run `terraform plan` and `terraform apply` directly;
-`terraform init` still attempts to resolve the unpublished provider in the Registry.
+With development overrides, run `terraform plan` and `terraform apply` directly.
+`terraform init` resolves the published provider in the Registry.
 
 ## Credentials and permissions
 
@@ -74,7 +76,7 @@ account outside the Terraform configuration that uses its token. Use `read`
 for import and refresh, `create` for provisioning, `update` for metadata,
 `disable` for either enabled-state transition or for creating a disabled
 account, and `delete` for destroy. Mutations are audited with the acting service
-account ID and token ID. Issue and rotate workload tokens in the dashboard.
+account ID and token ID.
 
 The `shipd_service_account` resource requires a shipd API that supports
 service-account administration with machine credentials.
@@ -135,8 +137,9 @@ including credential-bearing paths and query strings.
   Set `enabled = false` when importing a disabled account to preserve its state.
 - Missing objects leave state; authorization and connection failures return errors
   instead.
-- An interrupted process or exhausted retries may leave a created resource without
-  Terraform state: inspect shipd and import the existing ID before retrying.
+- If creation of a project, environment, or service account commits before an
+  interrupted run writes state, inspect shipd and import the existing ID before
+  retrying. Credential registrations have their own recovery workflow.
 
 Import existing resources:
 
@@ -147,3 +150,52 @@ terraform import shipd_service_account.build SERVICE_ACCOUNT_ID
 terraform import shipd_snapshot_webhook.convex ENVIRONMENT_ID/DESTINATION_ID
 terraform import shipd_event_webhook.invoices ENVIRONMENT_ID/ENDPOINT_ID
 ```
+
+
+## Manage credentials from CI
+
+| Resource | Provider authorization | Configuration |
+| --- | --- | --- |
+| [`shipd_sdk_key`](examples/resources/shipd_sdk_key) | Service account token with `sdk_key:create`, `sdk_key:read`, and `sdk_key:revoke` | Client or server key, one environment, explicit SDK scopes, optional expiry |
+| [`shipd_service_account_token`](examples/resources/shipd_service_account_token) | Organization-wide service account token with `service_account_token:create`, `service_account_token:read`, and `service_account_token:revoke` | Existing workload account, optional project or environment binding, explicit scope map, required future expiry |
+
+A bootstrap token must hold every workload scope it registers or revokes.
+Workload token scopes exclude `service_account_token` and `apiKey`. Use
+`SHIPD_API_KEY` for the bootstrap token and manage it in the dashboard. Existing
+management API keys remain supported for provider authentication within their
+bindings. Their creation and revocation use the user-session workflows.
+
+Give each credential generation a lowercase UUIDv4 and an immutable secret
+store version containing 32 random bytes encoded as unpadded base64url with the
+appropriate prefix (`shipd_sdk_client_`, `shipd_sdk_server_`, or `shipd_sa_`).
+Append a dot and the first 32 lowercase hex characters of the SHA-256 digest
+of the organization ID. This binds the credential's lookup prefix to its
+organization.
+Set `secret_version` to the nonsecret version identifier and supply the secret
+through a sensitive, ephemeral variable and the `secret_wo` argument. Consumers
+load the same secret-store version after apply. The version identifier stays
+in Terraform. Every new version needs a fresh UUID because Terraform cannot
+diff the write-only secret.
+
+The credential resources store IDs, names, bindings, scopes, expiry, SDK key
+type, the secret version identifier, and revocation status in state. They store no plaintext, key prefix, or
+hash and emit no secret outputs. Terraform's `sensitive` flag masks output.
+The ephemeral variable and write-only argument keep these inputs out of saved
+plans and state. Other resources or ordinary variables may persist their
+values. The provider sends the key prefix and SHA-256 digest to shipd.
+
+If creation commits before Terraform receives the response or writes state,
+reapply with the same UUID, metadata, and secret-store version. The API
+compares the UUID, lookup prefix, hash, and credential metadata, then retries SDK
+edge publication for a match. A mismatch fails with a conflict. If you lose that secret-store version, confirm the registration
+has settled and revoke the credential by UUID in shipd before issuing a fresh
+UUID and secret. These credential resources do not support `terraform import`.
+
+For rotation, create a second resource with a new UUID and secret. Apply, switch
+the consumer, verify authentication, and remove the old resource in a later
+apply. Both credentials work until you revoke them or either one expires. SDK
+revocation follows edge propagation. Existing WebSocket connections
+revalidate at least every 60 seconds. Replacing a single resource uses
+Terraform's default destroy-first order. Use a fresh UUID for changes to any
+immutable field and avoid `-replace` with the same UUID. Refresh records
+out-of-band revocation. Expiry and revocation require explicit rotation.
