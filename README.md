@@ -1,7 +1,7 @@
 # shipd Terraform provider
 
-Terraform provider for shipd projects and environments, with data sources,
-imports, and drift detection.
+Terraform provider for shipd projects, environments, and service accounts, with
+imports, drift detection, and data sources for projects and environments.
 The provider address is `alasti-company/shipd`; it is not published yet.
 
 ## Local installation
@@ -56,6 +56,29 @@ Project-bound service-account tokens can
 manage environments in that project; environment-bound credentials cannot create
 environments. Read-only consumers need the respective `read` scopes.
 
+### Bootstrap service-account administration
+
+In the shipd dashboard, sign in as an organization admin or owner and open
+**Settings → Service accounts**. Create a dedicated account for Terraform, then
+create a token on that account. Leave project and environment bindings empty
+and grant the following scopes for full service-account management:
+
+```json
+{
+  "service_account": ["read", "create", "update", "disable", "delete"]
+}
+```
+
+Store the token as `SHIPD_API_KEY` in the CI secret store. Keep the bootstrap
+account outside the Terraform configuration that uses its token. Use `read`
+for import and refresh, `create` for provisioning, `update` for metadata,
+`disable` for either enabled-state transition or for creating a disabled
+account, and `delete` for destroy. Mutations are audited with the acting service
+account ID and token ID. Issue and rotate workload tokens in the dashboard.
+
+The `shipd_service_account` resource requires a shipd API that supports
+service-account administration with machine credentials.
+
 ## Ownership and lifecycle
 
 - Terraform manages only resources declared in configuration. The data sources
@@ -65,7 +88,7 @@ environments. Read-only consumers need the respective `read` scopes.
 - Changing an environment's project replaces it. Names and slugs update in place.
   `type` defaults to `development` and `is_production` defaults to `false`.
   Set both explicitly when importing environments with different values.
-- Destroy archives the object. Recovery and slug reservation last seven days.
+- Destroy archives projects and environments. Recovery and slug reservation last seven days.
   A subsequent create does not automatically restore or adopt an archived object.
   Restore through the dashboard and import it, choose a new slug, or wait for
   the reservation to expire. Project archive also makes child resources inaccessible.
@@ -75,8 +98,12 @@ environments. Read-only consumers need the respective `read` scopes.
 - Only one environment per project may be production. To move the designation,
   first demote the current production environment and apply, then promote the
   replacement in another apply.
-- External edits appear as drift. Updates use the version from refreshed state;
-  concurrent changes return a conflict and require a fresh plan.
+- External edits appear as drift. Project and environment updates use the version
+  from refreshed state. Concurrent changes return a conflict and require a fresh plan.
+- Service accounts expose `name`, `description`, and `enabled` (default `true`).
+  Disable blocks all existing tokens. Re-enable restores access for unexpired,
+  unrevoked tokens. Destroy permanently deletes the account and its tokens.
+  Set `enabled = false` when importing a disabled account to preserve its state.
 - Missing objects leave state; authorization and connection failures return errors
   instead.
 - An interrupted process or exhausted retries may leave a created resource without
@@ -87,4 +114,5 @@ Import existing resources:
 ```sh
 terraform import shipd_project.app PROJECT_ID
 terraform import shipd_environment.production PROJECT_ID/ENVIRONMENT_ID
+terraform import shipd_service_account.build SERVICE_ACCOUNT_ID
 ```

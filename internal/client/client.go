@@ -183,6 +183,21 @@ type Identity struct {
 	} `json:"organization"`
 }
 
+type ServiceAccount struct {
+	ID             string  `json:"id"`
+	OrganizationID string  `json:"organizationId"`
+	Name           string  `json:"name"`
+	Description    *string `json:"description"`
+	DisabledAt     *string `json:"disabledAt"`
+}
+
+// A missing route must not be mistaken for a deleted account during refresh.
+func IsServiceAccountNotFound(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound &&
+		apiErr.Code == "not_found" && apiErr.Message == "Service account not found"
+}
+
 func (c *Client) Projects(ctx context.Context) ([]Project, error) {
 	var out []Project
 	err := c.RPC(ctx, "project/list", struct{}{}, &out, false)
