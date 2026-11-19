@@ -1,0 +1,1 @@
+terraform import shipd_event_webhook.invoices ENVIRONMENT_ID/ENDPOINT_ID

@@ -1,0 +1,1 @@
+terraform import shipd_snapshot_webhook.convex ENVIRONMENT_ID/DESTINATION_ID
