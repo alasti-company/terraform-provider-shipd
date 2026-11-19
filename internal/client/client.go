@@ -67,6 +67,10 @@ func New(baseURL, token string) (*Client, error) {
 // RPC retries only reads and idempotency-protected mutations. One key is retained
 // for all attempts of a logical mutation; conflicts are never retried.
 func (c *Client) RPC(ctx context.Context, operation string, input, output any, mutation bool) error {
+	return c.rpc(ctx, operation, input, output, mutation, 3)
+}
+
+func (c *Client) rpc(ctx context.Context, operation string, input, output any, mutation bool, attempts int) error {
 	body, err := json.Marshal(input)
 	if err != nil {
 		return err
@@ -79,7 +83,7 @@ func (c *Client) RPC(ctx context.Context, operation string, input, output any, m
 		}
 		key = hex.EncodeToString(b[:])
 	}
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/rpc/"+operation, bytes.NewReader(body))
 		if err != nil {
 			return err
@@ -144,7 +148,10 @@ func (c *Client) RPC(ctx context.Context, operation string, input, output any, m
 				}
 			}
 		}
-		if attempt == 2 {
+		if attempts == 1 {
+			return reqErr
+		}
+		if attempt == attempts-1 {
 			return fmt.Errorf("shipd request failed after retries: %w", reqErr)
 		}
 		if delay < 0 {

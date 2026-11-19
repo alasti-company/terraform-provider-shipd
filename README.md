@@ -1,7 +1,7 @@
 # shipd Terraform provider
 
-Terraform provider for shipd projects, environments, and service accounts, with
-imports, drift detection, and data sources for projects and environments.
+Terraform provider for shipd projects, environments, service accounts, and
+webhooks, with imports, drift detection, and project and environment data sources.
 The provider address is `alasti-company/shipd`; it is not published yet.
 
 ## Local installation
@@ -79,6 +79,35 @@ account ID and token ID. Issue and rotate workload tokens in the dashboard.
 The `shipd_service_account` resource requires a shipd API that supports
 service-account administration with machine credentials.
 
+## Webhook configuration
+
+- [Snapshot webhooks](docs/resources/snapshot_webhook.md) send
+  `snapshot.published` to one Convex destination per environment. The URL and
+  enabled state update in place. Use a service-account token with
+  `environment:read` and `snapshot_webhook:read`, plus
+  `snapshot_webhook:manage` for writes.
+- [Event webhooks](docs/resources/event_webhook.md) send customer events to an
+  HTTPS endpoint. Set `event_types` to the types you want to receive or use
+  `"*"` for all types. Subscriptions and enabled state update in place.
+  Changing the name or URL replaces the endpoint. Use a token with
+  `event_webhook:read`, plus `event_webhook:manage` for writes. Your
+  organization needs customer event webhooks enabled to create endpoints.
+
+Both resources require shipd API support for the `createConfig` operations.
+Moving either webhook to another environment replaces it. Destroy deletes the
+webhook and, for event endpoints, cancels pending deliveries.
+
+For a new receiver, create the webhook with `enabled = false`, rotate the
+signing secret in the shipd dashboard, and save the returned secret in the
+receiver's secret manager. Set `enabled = true` when the receiver is ready.
+Terraform plans and state omit signing secrets. Imports and in-place updates
+preserve the existing secret. Test sends, delivery history, and redelivery are
+available in shipd.
+
+Destination URLs are sensitive in Terraform output. Terraform stores the
+complete URL in the plan and state. Use URLs without embedded credentials,
+including credential-bearing paths and query strings.
+
 ## Ownership and lifecycle
 
 - Terraform manages only resources declared in configuration. The data sources
@@ -115,4 +144,6 @@ Import existing resources:
 terraform import shipd_project.app PROJECT_ID
 terraform import shipd_environment.production PROJECT_ID/ENVIRONMENT_ID
 terraform import shipd_service_account.build SERVICE_ACCOUNT_ID
+terraform import shipd_snapshot_webhook.convex ENVIRONMENT_ID/DESTINATION_ID
+terraform import shipd_event_webhook.invoices ENVIRONMENT_ID/ENDPOINT_ID
 ```
