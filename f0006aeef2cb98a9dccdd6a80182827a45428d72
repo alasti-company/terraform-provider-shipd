@@ -1,0 +1,23 @@
+internal/provider/provider_test.go
+  s_bdb0cdbf373f47::t_20e069a45d7ad7 176-188
+internal/client/client.go
+  s_bdb0cdbf373f47::t_20e069a45d7ad7 132-134
+internal/client/client_test.go
+  s_bdb0cdbf373f47::t_20e069a45d7ad7 115-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f0006aeef2cb98a9dccdd6a80182827a45428d72",
+  "prompts": {},
+  "sessions": {
+    "s_bdb0cdbf373f47": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ba10-3fda-7410-bd64-c6190ae9b961",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}

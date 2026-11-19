@@ -1,0 +1,38 @@
+.gitignore
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 6-7
+internal/client/client.go
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 40
+internal/provider/provider_test.go
+  s_bdb0cdbf373f47::t_6390b135781422 59,64-66,135-136,203-206,225-253
+  s_bdb0cdbf373f47::t_d81297e2ff7b7f 256-273
+internal/provider/resource_read_test.go
+  s_bdb0cdbf373f47::t_6390b135781422 1-63
+examples/provider/provider.tf
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 10-11
+internal/provider/project_resource.go
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 5,82,122
+internal/provider/environment_resource.go
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 5,8,62-64,79,98,126-143
+internal/provider/provider.go
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 12,60-63
+internal/provider/lookup_data_source.go
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 45
+.github/workflows/ci.yml
+  s_bdb0cdbf373f47::t_c71a84ed8036f2 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c163b9003bd9419006a3405db4d76958db18be56",
+  "prompts": {},
+  "sessions": {
+    "s_bdb0cdbf373f47": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ba10-3fda-7410-bd64-c6190ae9b961",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}

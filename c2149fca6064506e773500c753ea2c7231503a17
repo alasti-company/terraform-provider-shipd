@@ -1,0 +1,31 @@
+.github/workflows/ci.yml
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 5
+.github/workflows/release.yml
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 4,11-14,17
+release-please-config.json
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 1-12
+.release-please-manifest.json
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 1-3
+.github/workflows/release-please.yml
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 1-51
+RELEASING.md
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 1-34
+.goreleaser.yml
+  s_83f29f6d3b6e67::t_d20ccf62b63c35 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c2149fca6064506e773500c753ea2c7231503a17",
+  "prompts": {},
+  "sessions": {
+    "s_83f29f6d3b6e67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ba2e-a0f7-7f41-a05c-207f2159dbf6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
