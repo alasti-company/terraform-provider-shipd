@@ -1,0 +1,43 @@
+internal/provider/provider.go
+  s_9539ceba907d93::t_f5806de82bc95f 30,89-90
+internal/client/client.go
+  s_9539ceba907d93::t_f5806de82bc95f 70-73,86,151-154
+internal/client/webhook_test.go
+  s_9539ceba907d93::t_3e70192705e979 10,49,51,62-63
+  s_9539ceba907d93::t_7f50b5f1a62f03 1-9,11-48,50,52-61,64-65
+examples/resources/shipd_snapshot_webhook/resource.tf
+  s_9539ceba907d93::t_4a8a7615a7aa57 1-5
+examples/resources/shipd_event_webhook/import.sh
+  s_9539ceba907d93::t_4a8a7615a7aa57 1
+README.md
+  s_9539ceba907d93::t_f63b011ce09c48 3-4,82-110,147-148
+examples/resources/shipd_snapshot_webhook/import.sh
+  s_9539ceba907d93::t_4a8a7615a7aa57 1
+examples/resources/shipd_event_webhook/resource.tf
+  s_9539ceba907d93::t_4a8a7615a7aa57 1-7
+internal/provider/webhook_resource_test.go
+  s_9539ceba907d93::t_33c5f49a569f59 1-118
+internal/provider/webhook_resource.go
+  s_9539ceba907d93::t_4a8a7615a7aa57 113
+  s_9539ceba907d93::t_f5806de82bc95f 1-7,9-23,25-112,114-184,281
+  s_9539ceba907d93::t_3f8cb1130a1a77 8,24,185-280
+internal/client/webhook.go
+  s_9539ceba907d93::t_3e70192705e979 92-98
+  s_9539ceba907d93::t_f5806de82bc95f 1-91,99-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c45d907c651da13d4ab57522c294776aa4b6df0b",
+  "prompts": {},
+  "sessions": {
+    "s_9539ceba907d93": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f280-3033-7fc3-aa5f-87f9b6c7d35c",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
