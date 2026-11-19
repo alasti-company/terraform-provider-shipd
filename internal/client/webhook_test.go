@@ -63,3 +63,29 @@ func TestEventWebhookUpdateDoesNotRetryAnAmbiguousResponse(t *testing.T) {
 		t.Fatalf("expected one attempt and a diagnostic, got %d attempts and %v", calls.Load(), err)
 	}
 }
+
+func TestDeleteWebhookDistinguishesMissingResourceFromMissingRoute(t *testing.T) {
+	for _, tc := range []struct {
+		message string
+		missing bool
+	}{
+		{"Webhook endpoint not found", true},
+		{"Environment not found", true},
+		{"Route not found", false},
+	} {
+		t.Run(tc.message, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = fmt.Fprintf(w, `{"error":{"code":"not_found","message":%q}}`, tc.message)
+			}))
+			defer server.Close()
+			c, err := New(server.URL, "test-token")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = c.DeleteWebhook(context.Background(), "eventWebhook", "env-id", "endpoint-id"); (err == nil) != tc.missing {
+				t.Fatalf("expected missing=%t, got error %v", tc.missing, err)
+			}
+		})
+	}
+}

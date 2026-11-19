@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -115,4 +118,27 @@ resource "shipd_event_webhook" "test" {
 			return nil
 		},
 	})
+}
+
+func TestSnapshotWebhookURLValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		url   string
+		valid bool
+	}{
+		{"Convex URL", "https://example.convex.site/shipd/webhook", true},
+		{"userinfo", "https://user:secret@example.convex.site/shipd/webhook", false},
+		{"fragment", "https://example.convex.site/shipd/webhook#fragment", false},
+		{"non-Convex URL", "https://receiver.example/shipd/webhook", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var response validator.StringResponse
+			webhookURLValidator{}.ValidateString(context.Background(), validator.StringRequest{
+				Path: path.Root("url"), ConfigValue: types.StringValue(tc.url),
+			}, &response)
+			if response.Diagnostics.HasError() == tc.valid {
+				t.Fatalf("expected valid=%t, got %v", tc.valid, response.Diagnostics)
+			}
+		})
+	}
 }

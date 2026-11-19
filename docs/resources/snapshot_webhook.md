@@ -26,7 +26,7 @@ resource "shipd_snapshot_webhook" "convex" {
 ### Required
 
 - `environment_id` (String) Owning environment ID. Changing it replaces the webhook.
-- `url` (String, Sensitive) HTTPS Convex callback URL ending in .convex.site. Terraform stores the complete URL in plan and state. Use a URL without credentials.
+- `url` (String, Sensitive) HTTPS Convex callback URL ending in .convex.site without user information or a fragment. Terraform stores the complete URL in plan and state. Use a URL without credentials.
 
 ### Optional
 

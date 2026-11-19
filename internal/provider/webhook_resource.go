@@ -70,7 +70,7 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 	endpointURL := schema.StringAttribute{
 		Required: true, Sensitive: true,
-		Description: "HTTPS Convex callback URL ending in .convex.site. Terraform stores the complete URL in plan and state. Use a URL without credentials.",
+		Description: "HTTPS Convex callback URL ending in .convex.site without user information or a fragment. Terraform stores the complete URL in plan and state. Use a URL without credentials.",
 		Validators:  []validator.String{webhookURLValidator{event: r.event}},
 	}
 	attributes := map[string]schema.Attribute{
@@ -237,7 +237,7 @@ func (v webhookURLValidator) Description(context.Context) string {
 	if v.event {
 		return "Use an HTTPS URL without user information, a fragment, or surrounding whitespace, up to 2,048 characters."
 	}
-	return "Use an HTTPS Convex callback URL ending in .convex.site without surrounding whitespace, up to 2,048 characters."
+	return "Use an HTTPS Convex callback URL ending in .convex.site without user information, a fragment, or surrounding whitespace, up to 2,048 characters."
 }
 
 func (v webhookURLValidator) MarkdownDescription(ctx context.Context) string {
@@ -251,7 +251,7 @@ func (v webhookURLValidator) ValidateString(ctx context.Context, req validator.S
 	value := req.ConfigValue.ValueString()
 	u, err := url.Parse(value)
 	if err != nil || !webhookTextValid(value, 2048) || u.Scheme != "https" || u.Hostname() == "" ||
-		(v.event && (u.User != nil || strings.Contains(value, "#"))) ||
+		u.User != nil || strings.Contains(value, "#") ||
 		(!v.event && !strings.HasSuffix(strings.ToLower(u.Hostname()), ".convex.site")) {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid webhook URL", v.Description(ctx))
 	}
