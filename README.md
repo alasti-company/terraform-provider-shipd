@@ -141,9 +141,9 @@ of the organization ID. This binds the credential's lookup prefix to its
 organization.
 Set `secret_version` to the nonsecret version identifier and supply the secret
 through a sensitive, ephemeral variable and the `secret_wo` argument. Consumers
-load the same secret-store version after apply. Terraform tracks the version
-identifier. Every new version needs a fresh UUID because Terraform cannot diff
-the write-only secret.
+load the same secret-store version after apply. The version identifier stays
+in Terraform. Every new version needs a fresh UUID because Terraform cannot
+diff the write-only secret.
 
 The credential resources store IDs, names, bindings, scopes, expiry, SDK key
 type, the secret version identifier, and revocation status in state. They store no plaintext, key prefix, or
@@ -154,8 +154,8 @@ values. The provider sends the key prefix and SHA-256 digest to shipd.
 
 If creation commits before Terraform receives the response or writes state,
 reapply with the same UUID, metadata, and secret-store version. The API
-reconciles an exact match and retries SDK edge publication. A mismatch fails
-with a conflict. If you lose that secret-store version, confirm the registration
+compares the UUID, lookup prefix, hash, and credential metadata, then retries SDK
+edge publication for a match. A mismatch fails with a conflict. If you lose that secret-store version, confirm the registration
 has settled and revoke the credential by UUID in shipd before issuing a fresh
 UUID and secret. These credential resources do not support `terraform import`.
 

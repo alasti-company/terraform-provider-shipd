@@ -299,7 +299,7 @@ func credentialDiagnostic(err error) string {
 		case http.StatusNotFound:
 			return "Verify the credential's parent resources exist and that the shipd API supports this operation."
 		case http.StatusConflict:
-			return "Verify the parent is enabled and the UUID, secret-store version and metadata match the original registration. Use a fresh UUID and secret for a new credential."
+			return "Confirm the parent is enabled and the UUID, credential material, and metadata match the original registration. Load the original secret-store version to recover. Use a fresh UUID and secret for a new credential."
 		case http.StatusUnprocessableEntity:
 			return "Verify the organization, resource IDs, credential type, scopes, name and expiration."
 		}
