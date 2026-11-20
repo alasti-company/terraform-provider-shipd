@@ -2,12 +2,14 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -89,7 +91,16 @@ func (r *projectGrantResource) ValidateConfig(ctx context.Context, req resource.
 func (r *projectGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan projectGrantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() || !r.write(ctx, &plan, nil, &resp.Diagnostics) {
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if err := r.write(ctx, &plan, nil); err != nil {
+		detail := err.Error()
+		var apiErr *client.APIError
+		if !errors.As(err, &apiErr) || apiErr.Status == http.StatusConflict || apiErr.Status == http.StatusTooManyRequests || apiErr.Status >= 500 {
+			detail += fmt.Sprintf("\nIf the grant exists in shipd, import it using ID %q before applying again.", plan.importID())
+		}
+		resp.Diagnostics.AddError("Cannot create project access grant", detail)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -121,9 +132,11 @@ func (r *projectGrantResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 	plan.OrganizationID = state.OrganizationID
-	if r.write(ctx, &plan, state.grant(), &resp.Diagnostics) {
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	if err := r.write(ctx, &plan, state.grant()); err != nil {
+		resp.Diagnostics.AddError("Cannot update project access grant", err.Error())
+		return
 	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *projectGrantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -132,12 +145,9 @@ func (r *projectGrantResource) Delete(ctx context.Context, req resource.DeleteRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	_, grant, err := r.client.ChangeProjectGrant(ctx, state.target(), state.grant(), nil)
-	switch {
-	case err != nil && !client.IsProjectGrantProjectNotFound(err):
+	_, _, err := r.client.ChangeProjectGrant(ctx, state.target(), state.grant(), nil)
+	if err != nil && !client.IsProjectGrantProjectNotFound(err) {
 		resp.Diagnostics.AddError("Cannot delete project access grant", err.Error())
-	case grant != nil:
-		resp.Diagnostics.AddError("Cannot delete project access grant", "The API still reports an assignment.")
 	}
 }
 
@@ -154,18 +164,13 @@ func (r *projectGrantResource) ImportState(ctx context.Context, req resource.Imp
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("principal_id"), parts[2])...)
 }
 
-func (r *projectGrantResource) write(ctx context.Context, plan *projectGrantModel, expected *client.ProjectGrant, diagnostics *diag.Diagnostics) bool {
+func (r *projectGrantResource) write(ctx context.Context, plan *projectGrantModel, expected *client.ProjectGrant) error {
 	org, grant, err := r.client.ChangeProjectGrant(ctx, plan.target(), expected, plan.grant())
 	if err != nil {
-		diagnostics.AddError("Cannot write project access grant", err.Error())
-		return false
-	}
-	if grant == nil || grantRole(grant) != plan.Role.ValueString() {
-		diagnostics.AddError("Cannot write project access grant", "The API returned a different grant than requested.")
-		return false
+		return err
 	}
 	plan.setResult(org, grantRole(grant))
-	return true
+	return nil
 }
 
 func (m projectGrantModel) target() client.ProjectGrantTarget {
@@ -193,7 +198,11 @@ func grantRole(grant *client.ProjectGrant) string {
 }
 
 func (m *projectGrantModel) setResult(organizationID, role string) {
-	m.ID = types.StringValue(strings.Join([]string{m.ProjectID.ValueString(), m.PrincipalType.ValueString(), m.PrincipalID.ValueString()}, "/"))
+	m.ID = types.StringValue(m.importID())
 	m.OrganizationID = types.StringValue(organizationID)
 	m.Role = types.StringValue(role)
+}
+
+func (m projectGrantModel) importID() string {
+	return strings.Join([]string{m.ProjectID.ValueString(), m.PrincipalType.ValueString(), m.PrincipalID.ValueString()}, "/")
 }

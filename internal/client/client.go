@@ -67,10 +67,15 @@ func New(baseURL, token string) (*Client, error) {
 // RPC retries only reads and idempotency-protected mutations. One key is retained
 // for all attempts of a logical mutation; conflicts are never retried.
 func (c *Client) RPC(ctx context.Context, operation string, input, output any, mutation bool) error {
-	return c.rpc(ctx, operation, input, output, mutation, 3)
+	return c.rpc(ctx, operation, input, output, mutation, rpcOptions{attempts: 3})
 }
 
-func (c *Client) rpc(ctx context.Context, operation string, input, output any, mutation bool, attempts int) error {
+type rpcOptions struct {
+	attempts          int
+	retryDecodeErrors bool
+}
+
+func (c *Client) rpc(ctx context.Context, operation string, input, output any, mutation bool, options rpcOptions) error {
 	body, err := json.Marshal(input)
 	if err != nil {
 		return err
@@ -83,7 +88,7 @@ func (c *Client) rpc(ctx context.Context, operation string, input, output any, m
 		}
 		key = hex.EncodeToString(b[:])
 	}
-	for attempt := 0; attempt < attempts; attempt++ {
+	for attempt := 0; attempt < options.attempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/v1/rpc/"+operation, bytes.NewReader(body))
 		if err != nil {
 			return err
@@ -101,6 +106,9 @@ func (c *Client) rpc(ctx context.Context, operation string, input, output any, m
 			data, readErr := io.ReadAll(res.Body)
 			res.Body.Close()
 			if res.StatusCode >= 200 && res.StatusCode < 300 {
+				// A response may be incomplete after a committed write. Retry with
+				// the same key if the envelope or its data cannot be decoded.
+				reqErr = errors.New("invalid or incomplete shipd success response")
 				if readErr == nil {
 					var envelope struct {
 						Data json.RawMessage `json:"data"`
@@ -109,11 +117,11 @@ func (c *Client) rpc(ctx context.Context, operation string, input, output any, m
 						if output == nil {
 							return nil
 						}
-						return json.Unmarshal(envelope.Data, output)
+						if reqErr = json.Unmarshal(envelope.Data, output); reqErr == nil || !options.retryDecodeErrors {
+							return reqErr
+						}
 					}
 				}
-				// A response may be truncated after a committed write. Reuse its key.
-				reqErr = errors.New("invalid or incomplete shipd success response")
 			} else {
 				var envelope struct {
 					Error struct {
@@ -148,10 +156,10 @@ func (c *Client) rpc(ctx context.Context, operation string, input, output any, m
 				}
 			}
 		}
-		if attempts == 1 {
+		if options.attempts == 1 {
 			return reqErr
 		}
-		if attempt == attempts-1 {
+		if attempt == options.attempts-1 {
 			return fmt.Errorf("shipd request failed after retries: %w", reqErr)
 		}
 		if delay < 0 {

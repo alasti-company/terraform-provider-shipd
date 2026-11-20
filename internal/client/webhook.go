@@ -55,7 +55,7 @@ func (c *Client) UpdateWebhook(ctx context.Context, kind string, config Webhook)
 	if kind == "eventWebhook" {
 		input["eventTypes"] = config.EventTypes
 		// This RPC also supports secret rotation, so the API excludes it from durable replay.
-		err := c.rpc(ctx, kind+"/update", input, &out, false, 1)
+		err := c.rpc(ctx, kind+"/update", input, &out, false, rpcOptions{attempts: 1})
 		return out, webhookError(err)
 	}
 	input["url"] = config.URL
@@ -69,7 +69,7 @@ func (c *Client) DeleteWebhook(ctx context.Context, kind, environmentID, id stri
 	if kind == "eventWebhook" {
 		// Event deletes are outside the API's replay middleware. A later apply
 		// can confirm an ambiguous deletion through refresh.
-		err = c.rpc(ctx, kind+"/delete", input, nil, false, 1)
+		err = c.rpc(ctx, kind+"/delete", input, nil, false, rpcOptions{attempts: 1})
 	} else {
 		err = c.RPC(ctx, kind+"/delete", input, nil, true)
 	}

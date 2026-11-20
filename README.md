@@ -117,9 +117,11 @@ terraform import shipd_project_access_grant.reviewer PROJECT_ID/member/MEMBER_ID
 terraform import shipd_project_access_grant.release_team PROJECT_ID/team/TEAM_ID
 ```
 
-Use one Terraform address per project and principal. A create that encounters an
-existing assignment returns a conflict. Import that assignment to recover an
-interrupted create or to adopt a grant created outside Terraform.
+Use one Terraform address per project and principal. If a create response is
+lost or invalid, the provider retries with the same idempotency key to recover
+the API's recorded result. If the create remains unconfirmed, check shipd and
+import the assignment if it exists. A create that encounters an existing
+assignment returns a conflict and shows its import ID.
 
 ## Webhook configuration
 

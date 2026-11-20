@@ -20,6 +20,8 @@ func TestProjectGrantLifecycle(t *testing.T) {
 			const address = "shipd_project_access_grant.test"
 			var mu sync.Mutex
 			edits := 0
+			loseNextCreateReply := false
+			replayKey := ""
 			unrelated := &client.ProjectGrant{Role: new("editor")}
 			grant := &client.ProjectGrant{Role: new("viewer")}
 			if kind == "team" {
@@ -46,8 +48,13 @@ func TestProjectGrantLifecycle(t *testing.T) {
 				switch r.URL.Path {
 				case "/api/v1/rpc/project/getAccessGrant":
 				case "/api/v1/rpc/project/changeAccessGrant":
-					if r.Header.Get("Idempotency-Key") == "" {
+					key := r.Header.Get("Idempotency-Key")
+					if key == "" {
 						t.Error("missing Idempotency-Key")
+					}
+					if key != "" && key == replayKey {
+						replayKey = ""
+						break
 					}
 					current := grants[input.PrincipalID]
 					if !equalTestGrant(current, input.Expected) && !(current == nil && input.Grant == nil) {
@@ -60,6 +67,16 @@ func TestProjectGrantLifecycle(t *testing.T) {
 						delete(grants, input.PrincipalID)
 					} else {
 						grants[input.PrincipalID] = input.Grant
+					}
+					if input.Expected == nil && input.Grant != nil && loseNextCreateReply {
+						loseNextCreateReply = false
+						replayKey = key
+						// The API committed the grant, but part of the
+						// response data was lost before the provider got it.
+						_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+							"organizationId": "org", "grant": map[string]any{},
+						}})
+						return
 					}
 				default:
 					w.WriteHeader(404)
@@ -97,7 +114,7 @@ import {
 			resource.Test(t, resource.TestCase{
 				IsUnitTest: true, ProtoV6ProviderFactories: factories(),
 				Steps: []resource.TestStep{
-					{Config: config(original), ExpectError: regexp.MustCompile("Import the existing grant")},
+					{Config: config(original), ExpectError: regexp.MustCompile("(?s)Import the existing grant.*" + id)},
 					{Config: importConfig, Check: resource.ComposeTestCheckFunc(
 						resource.TestCheckResourceAttr(address, "id", id),
 						resource.TestCheckResourceAttr(address, "organization_id", "org"),
@@ -115,13 +132,14 @@ import {
 						mu.Lock()
 						defer mu.Unlock()
 						delete(grants, "principal")
+						loseNextCreateReply = true
 					}},
 					{Config: config("editor")},
 				},
 				CheckDestroy: func(_ *terraform.State) error {
 					mu.Lock()
 					defer mu.Unlock()
-					if grants["principal"] != nil || grants["unrelated"] != unrelated || edits != 4 {
+					if grants["principal"] != nil || grants["unrelated"] != unrelated || edits != 4 || loseNextCreateReply || replayKey != "" {
 						return fmt.Errorf("expected four changes and only the unrelated grant to remain, got %d changes and %v", edits, grants)
 					}
 					return nil
