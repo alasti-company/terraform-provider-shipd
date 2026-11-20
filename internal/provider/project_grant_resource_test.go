@@ -155,3 +155,32 @@ func equalTestGrant(a, b *client.ProjectGrant) bool {
 	}
 	return grantRole(a) == grantRole(b)
 }
+
+func TestProjectGrantRejectsInheritedRoleForResolvedMember(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("invalid grant reached the API at %s", r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	t.Cleanup(server.Close)
+	config := fmt.Sprintf(`
+provider "shipd" {
+  api_url = %q
+  api_key = "test-token"
+}
+resource "terraform_data" "principal_type" {
+  input = "member"
+}
+resource "shipd_project_access_grant" "test" {
+  project_id     = "project"
+  principal_type = terraform_data.principal_type.output
+  principal_id   = "principal"
+  role           = "inherited"
+}
+`, server.URL)
+	resource.Test(t, resource.TestCase{
+		IsUnitTest: true, ProtoV6ProviderFactories: factories(),
+		Steps: []resource.TestStep{
+			{Config: config, ExpectError: regexp.MustCompile("Invalid direct grant role")},
+		},
+	})
+}

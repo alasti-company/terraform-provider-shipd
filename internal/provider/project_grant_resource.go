@@ -10,6 +10,7 @@ import (
 
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -83,14 +84,13 @@ func (r *projectGrantResource) Configure(_ context.Context, req resource.Configu
 func (r *projectGrantResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config projectGrantModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if config.PrincipalType.ValueString() == "member" && config.Role.ValueString() == "inherited" {
-		resp.Diagnostics.AddAttributeError(path.Root("role"), "Invalid direct grant role", "Member grants require the viewer or editor role.")
-	}
+	config.validateRole(&resp.Diagnostics)
 }
 
 func (r *projectGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan projectGrantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	plan.validateRole(&resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -128,6 +128,7 @@ func (r *projectGrantResource) Update(ctx context.Context, req resource.UpdateRe
 	var plan, state projectGrantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	plan.validateRole(&resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -179,6 +180,12 @@ func (m projectGrantModel) target() client.ProjectGrantTarget {
 		OrganizationID: m.OrganizationID.ValueString(),
 		Kind:           m.PrincipalType.ValueString(),
 		PrincipalID:    m.PrincipalID.ValueString(),
+	}
+}
+
+func (m projectGrantModel) validateRole(diagnostics *diag.Diagnostics) {
+	if m.PrincipalType.ValueString() == "member" && m.Role.ValueString() == "inherited" {
+		diagnostics.AddAttributeError(path.Root("role"), "Invalid direct grant role", "Member grants require the viewer or editor role.")
 	}
 }
 
