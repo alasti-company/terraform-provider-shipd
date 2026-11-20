@@ -1,0 +1,21 @@
+internal/provider/project_grant_resource.go
+  s_1773608b2370f8::t_c7f63f3e59c67c 13,87,93,131,186-188
+internal/provider/project_grant_resource_test.go
+  s_1773608b2370f8::t_c7f63f3e59c67c 158-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "14fb00007380960ad420147c52bb53141d5d5d4b",
+  "prompts": {},
+  "sessions": {
+    "s_1773608b2370f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f87c-1696-75d0-ba03-28db81d511c5",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
