@@ -1,0 +1,38 @@
+examples/resources/shipd_project_access_grant/resource.tf
+  s_1773608b2370f8::t_1b2668906e1146 1-13
+examples/resources/shipd_project_access_grant/import.sh
+  s_1773608b2370f8::t_1b2668906e1146 1-2
+README.md
+  s_1773608b2370f8::t_38eb7d4eb9bd98 4-7,109-113
+  s_1773608b2370f8::t_1b2668906e1146 3,84-108,114-122
+internal/client/project_grant.go
+  s_1773608b2370f8::t_ad75405c26e339 1-71
+internal/provider/project_grant_resource.go
+  s_1773608b2370f8::t_38eb7d4eb9bd98 32-35,44
+  s_1773608b2370f8::t_8332f7091ecf83 1-31,36-43,45-199
+docs/index.md
+  s_1773608b2370f8::t_31c8cbcba89d5f 5,10
+internal/provider/project_grant_resource_test.go
+  s_1773608b2370f8::t_11c6eb17b6c214 1-139
+docs/resources/project_access_grant.md
+  s_1773608b2370f8::t_fb8101154d9178 6,11
+  s_1773608b2370f8::t_31c8cbcba89d5f 1-5,7-10,12-55
+internal/provider/provider.go
+  s_1773608b2370f8::t_8332f7091ecf83 30,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f036d7fbdad4cb71ea246c6ae50e77a9a5781b32",
+  "prompts": {},
+  "sessions": {
+    "s_1773608b2370f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f87c-1696-75d0-ba03-28db81d511c5",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
