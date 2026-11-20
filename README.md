@@ -1,10 +1,10 @@
 # shipd Terraform provider
 
-The Terraform provider at `alasti-company/shipd` manages projects, environments,
-service accounts, webhooks, SDK keys, and workload service account tokens. It
-also provides project and environment data sources. Credential resources require
-a provider release that includes them and a shipd API with credential
-registration support.
+The Terraform provider at `alasti-company/shipd` manages projects, project access
+grants, environments, service accounts, webhooks, SDK keys, and workload service
+account tokens. It also provides project and environment data sources. Credential
+resources require a provider release that includes them and a shipd API with
+credential registration support.
 
 ## Local installation
 
@@ -80,6 +80,46 @@ account ID and token ID.
 
 The `shipd_service_account` resource requires a shipd API that supports
 service-account administration with machine credentials.
+
+## Project access grants
+
+Use [`shipd_project_access_grant`](docs/resources/project_access_grant.md) to
+manage one existing organization member's direct role or one team's assignment
+to a project. Set `role` to `viewer` or `editor`. A team assignment can also use
+`inherited` to follow shipd's organization-role inheritance rules. Role changes
+update the grant in place. Other grants are managed independently.
+
+The project must be on a Teams or Enterprise plan and the API must support
+`project/getAccessGrant` and `project/changeAccessGrant`. An organization admin
+or owner can issue a service-account token with these scopes:
+
+```json
+{
+  "project_access": ["read", "manage"]
+}
+```
+
+Use `read` for import and refresh, and `manage` for writes. A token can be
+organization-wide or bound to one project. Leave its environment binding empty.
+Organization owners and admins retain their organization authority, and removing
+a direct grant can expose access inherited through a team or the organization.
+Adding a first team assignment restricts organization-wide project access.
+Removing the final team assignment restores it, subject to any direct grants.
+
+For adoption, an organization admin can read existing grants from the project's
+access settings or the `project/listMembers` and `project/listTeams` RPCs using
+a user session. Use the returned `memberId` or `teamId`. Declare the grant with
+its current role, using `inherited` when an existing team role is null, then import
+it:
+
+```sh
+terraform import shipd_project_access_grant.reviewer PROJECT_ID/member/MEMBER_ID
+terraform import shipd_project_access_grant.release_team PROJECT_ID/team/TEAM_ID
+```
+
+Use one Terraform address per project and principal. A create that encounters an
+existing assignment returns a conflict. Import that assignment to recover an
+interrupted create or to adopt a grant created outside Terraform.
 
 ## Webhook configuration
 

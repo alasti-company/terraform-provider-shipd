@@ -1,0 +1,2 @@
+terraform import shipd_project_access_grant.reviewer PROJECT_ID/member/MEMBER_ID
+terraform import shipd_project_access_grant.release_team PROJECT_ID/team/TEAM_ID
