@@ -33,14 +33,13 @@ func (c *Client) ChangeProjectGrant(ctx context.Context, target ProjectGrantTarg
 		Expected *ProjectGrant `json:"expected"`
 		Grant    *ProjectGrant `json:"grant"`
 	}{target, expected, grant}
-	result := projectGrantResponse{target: target, mutation: true, desired: grant}
+	result := projectGrantResponse{target: target, desired: grant}
 	err := c.rpc(ctx, "project/changeAccessGrant", input, &result, true, rpcOptions{attempts: 3, retryDecodeErrors: true})
 	return result.organizationID, result.grant, err
 }
 
 type projectGrantResponse struct {
 	target         ProjectGrantTarget
-	mutation       bool
 	desired        *ProjectGrant
 	organizationID string
 	grant          *ProjectGrant
@@ -73,7 +72,7 @@ func (r *projectGrantResponse) UnmarshalJSON(data []byte) error {
 			return errors.New("invalid role in shipd project grant response")
 		}
 	}
-	if r.mutation && !sameProjectGrant(r.desired, grant) {
+	if r.desired != nil && !sameProjectGrant(r.desired, grant) {
 		return errors.New("shipd returned a different project grant than requested")
 	}
 	r.organizationID, r.grant = result.OrganizationID, grant

@@ -106,8 +106,8 @@ func (c *Client) rpc(ctx context.Context, operation string, input, output any, m
 			data, readErr := io.ReadAll(res.Body)
 			res.Body.Close()
 			if res.StatusCode >= 200 && res.StatusCode < 300 {
-				// A response may be incomplete after a committed write. Retry with
-				// the same key if the envelope or its data cannot be decoded.
+				// A response may be incomplete after a committed write. Reuse
+				// the key on envelope failures. Retrying data errors is opt-in.
 				reqErr = errors.New("invalid or incomplete shipd success response")
 				if readErr == nil {
 					var envelope struct {

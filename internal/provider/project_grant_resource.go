@@ -146,9 +146,12 @@ func (r *projectGrantResource) Delete(ctx context.Context, req resource.DeleteRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	_, _, err := r.client.ChangeProjectGrant(ctx, state.target(), state.grant(), nil)
-	if err != nil && !client.IsProjectGrantProjectNotFound(err) {
+	_, grant, err := r.client.ChangeProjectGrant(ctx, state.target(), state.grant(), nil)
+	switch {
+	case err != nil && !client.IsProjectGrantProjectNotFound(err):
 		resp.Diagnostics.AddError("Cannot delete project access grant", err.Error())
+	case grant != nil:
+		resp.Diagnostics.AddError("Cannot delete project access grant", "The API still reports an assignment.")
 	}
 }
 

@@ -21,6 +21,7 @@ func TestProjectGrantLifecycle(t *testing.T) {
 			var mu sync.Mutex
 			edits := 0
 			loseNextCreateReply := false
+			rejectNextDelete := false
 			replayKey := ""
 			unrelated := &client.ProjectGrant{Role: new("editor")}
 			grant := &client.ProjectGrant{Role: new("viewer")}
@@ -61,6 +62,10 @@ func TestProjectGrantLifecycle(t *testing.T) {
 						w.WriteHeader(http.StatusConflict)
 						_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"message": "Import the existing grant"}})
 						return
+					}
+					if input.Grant == nil && rejectNextDelete {
+						rejectNextDelete = false
+						break
 					}
 					edits++
 					if input.Grant == nil {
@@ -135,6 +140,12 @@ import {
 						loseNextCreateReply = true
 					}},
 					{Config: config("editor")},
+					{Config: provider, ExpectError: regexp.MustCompile("The API still reports an assignment."), PreConfig: func() {
+						mu.Lock()
+						defer mu.Unlock()
+						rejectNextDelete = true
+					}},
+					{Config: provider},
 				},
 				CheckDestroy: func(_ *terraform.State) error {
 					mu.Lock()
