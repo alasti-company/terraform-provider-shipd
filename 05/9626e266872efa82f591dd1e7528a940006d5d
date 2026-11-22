@@ -1,0 +1,23 @@
+docs/resources/approval_policy.md
+  s_086e1423e63dd5::t_56b559bc4dc6d1 69-72
+README.md
+  s_086e1423e63dd5::t_a32f874ff2bebb 154-157
+examples/resources/shipd_approval_policy/import.sh
+  s_086e1423e63dd5::t_a32f874ff2bebb 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "059626e266872efa82f591dd1e7528a940006d5d",
+  "prompts": {},
+  "sessions": {
+    "s_086e1423e63dd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a2010d-0b72-7f33-a3f8-0291e640417c",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
