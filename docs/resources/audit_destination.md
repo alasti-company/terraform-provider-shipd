@@ -82,7 +82,7 @@ resource "shipd_audit_destination" "s3" {
 - `endpoint` (String, Sensitive) Required for S3. Use an absolute S3-compatible endpoint without credentials, a query, or a fragment. Terraform stores this URL in plan and state as sensitive.
 - `events` (Set of String) Webhook audit actions to deliver. Omit to deliver all audit actions.
 - `format` (String) Required for SIEM. Choose json, splunk_hec, datadog, axiom, or better_stack.
-- `prefix` (String) Optional S3 object key prefix.
+- `prefix` (String) S3 object key prefix. Omit to use shipd-audit.
 - `region` (String) Required for S3. Region used to sign requests.
 - `url` (String, Sensitive) Required for webhook and SIEM. Use an absolute URL without credentials, a query, or a fragment. Terraform stores this URL in plan and state as sensitive.
 

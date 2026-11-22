@@ -11,6 +11,7 @@ import (
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -24,6 +25,8 @@ import (
 )
 
 type auditDestinationResource struct{ client *client.Client }
+
+const defaultAuditS3Prefix = "shipd-audit"
 
 var (
 	_ resource.ResourceWithConfigure      = &auditDestinationResource{}
@@ -63,7 +66,6 @@ func (r *auditDestinationResource) Schema(_ context.Context, _ resource.SchemaRe
 	address := func(description string) schema.StringAttribute {
 		return schema.StringAttribute{
 			Optional: true, Sensitive: true, Description: description,
-			Validators: []validator.String{auditDestinationURLValidator{}},
 		}
 	}
 	accessKeyID := optionalString("S3 access key ID. Terraform stores this identifier in plan and state as sensitive.")
@@ -102,7 +104,7 @@ func (r *auditDestinationResource) Schema(_ context.Context, _ resource.SchemaRe
 			"endpoint":      address("Required for S3. Use an absolute S3-compatible endpoint without credentials, a query, or a fragment. Terraform stores this URL in plan and state as sensitive."),
 			"region":        optionalString("Required for S3. Region used to sign requests."),
 			"bucket":        optionalString("Required for S3. Name of the bucket that receives audit events."),
-			"prefix":        optionalString("Optional S3 object key prefix."),
+			"prefix":        optionalString("S3 object key prefix. Omit to use shipd-audit."),
 			"access_key_id": accessKeyID,
 			"credential_wo": schema.StringAttribute{
 				Optional: true, Sensitive: true, WriteOnly: true,
@@ -123,8 +125,23 @@ func (r *auditDestinationResource) ValidateConfig(ctx context.Context, req resou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	validateAuditDestinationConfig(config, &resp.Diagnostics)
+	if !config.CredentialWO.IsNull() && !config.CredentialWO.IsUnknown() && config.CredentialVersion.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("credential_version"), "Missing credential version", "Set a nonsecret version when supplying credential_wo.")
+	}
+}
+
+func validateAuditDestinationConfig(config auditDestinationModel, diagnostics *diag.Diagnostics) {
 	if !config.Name.IsNull() && !config.Name.IsUnknown() && !webhookTextValid(config.Name.ValueString(), 80) {
-		resp.Diagnostics.AddAttributeError(path.Root("name"), "Invalid audit destination name", "Use 1 to 80 UTF-16 code units without leading or trailing whitespace.")
+		diagnostics.AddAttributeError(path.Root("name"), "Invalid audit destination name", "Use 1 to 80 UTF-16 code units without leading or trailing whitespace.")
+	}
+	for _, address := range []struct {
+		name  string
+		value types.String
+	}{{"url", config.URL}, {"endpoint", config.Endpoint}} {
+		if !address.value.IsNull() && !address.value.IsUnknown() && !validAuditDestinationURL(address.value.ValueString()) {
+			diagnostics.AddAttributeError(path.Root(address.name), "Invalid audit destination URL", "Use an absolute HTTP(S) URL without credentials, a query, or a fragment.")
+		}
 	}
 	kind := config.Type.ValueString()
 	if kind == "" {
@@ -134,26 +151,26 @@ func (r *auditDestinationResource) ValidateConfig(ctx context.Context, req resou
 		name     string
 		allowed  bool
 		required bool
-		isNull   bool
+		value    attr.Value
 	}{
-		{"url", kind != "s3", kind != "s3", config.URL.IsNull()},
-		{"events", kind == "webhook", false, config.Events.IsNull()},
-		{"format", kind == "siem", kind == "siem", config.Format.IsNull()},
-		{"endpoint", kind == "s3", kind == "s3", config.Endpoint.IsNull()},
-		{"region", kind == "s3", kind == "s3", config.Region.IsNull()},
-		{"bucket", kind == "s3", kind == "s3", config.Bucket.IsNull()},
-		{"prefix", kind == "s3", false, config.Prefix.IsNull()},
-		{"access_key_id", kind == "s3", kind == "s3", config.AccessKeyID.IsNull()},
+		{"url", kind != "s3", kind != "s3", config.URL},
+		{"events", kind == "webhook", false, config.Events},
+		{"format", kind == "siem", kind == "siem", config.Format},
+		{"endpoint", kind == "s3", kind == "s3", config.Endpoint},
+		{"region", kind == "s3", kind == "s3", config.Region},
+		{"bucket", kind == "s3", kind == "s3", config.Bucket},
+		{"prefix", kind == "s3", false, config.Prefix},
+		{"access_key_id", kind == "s3", kind == "s3", config.AccessKeyID},
 	} {
-		if field.required && field.isNull {
-			resp.Diagnostics.AddAttributeError(path.Root(field.name), "Missing destination setting", "This argument is required for type "+kind+".")
+		if field.value.IsUnknown() {
+			continue
 		}
-		if !field.allowed && !field.isNull {
-			resp.Diagnostics.AddAttributeError(path.Root(field.name), "Incompatible destination setting", "Omit this argument for type "+kind+".")
+		if field.required && field.value.IsNull() {
+			diagnostics.AddAttributeError(path.Root(field.name), "Missing destination setting", "This argument is required for type "+kind+".")
 		}
-	}
-	if !config.CredentialWO.IsNull() && config.CredentialVersion.IsNull() {
-		resp.Diagnostics.AddAttributeError(path.Root("credential_version"), "Missing credential version", "Set a nonsecret version when supplying credential_wo.")
+		if !field.allowed && !field.value.IsNull() {
+			diagnostics.AddAttributeError(path.Root(field.name), "Incompatible destination setting", "Omit this argument for type "+kind+".")
+		}
 	}
 }
 
@@ -188,6 +205,7 @@ func (r *auditDestinationResource) Create(ctx context.Context, req resource.Crea
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	validateAuditDestinationConfig(plan, &resp.Diagnostics)
 	validateDestinationCredential(plan, secret, true, &resp.Diagnostics)
 	config := plan.destinationConfig(ctx, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -203,10 +221,32 @@ func (r *auditDestinationResource) Create(ctx context.Context, req resource.Crea
 		resp.Diagnostics.AddError("Cannot create audit destination", detail)
 		return
 	}
-	setAuditDestinationState(ctx, &resp.State, plan.Type, plan.CredentialVersion, result, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		resp.Diagnostics.AddWarning("Audit destination may have been created", "Check the destination list in shipd and import its ID if it exists before applying again.")
+	var responseDiagnostics diag.Diagnostics
+	setAuditDestinationState(ctx, &resp.State, plan, result, &responseDiagnostics)
+	if !responseDiagnostics.HasError() {
+		resp.Diagnostics.Append(responseDiagnostics...)
+		return
 	}
+	// Recover the created object by ID without repeating the credential write.
+	if result.ID != "" {
+		if fresh, err := r.client.AuditDestination(ctx, result.ID); err == nil {
+			var readDiagnostics diag.Diagnostics
+			setAuditDestinationState(ctx, &resp.State, plan, fresh, &readDiagnostics)
+			if !readDiagnostics.HasError() {
+				resp.Diagnostics.Append(readDiagnostics...)
+				return
+			}
+		}
+	}
+	resp.Diagnostics.Append(responseDiagnostics...)
+	if result.ID == "" || result.Type != "" && result.Type != plan.Type.ValueString() {
+		resp.Diagnostics.AddWarning("Audit destination may have been created", "Check the destination list in shipd and import its ID if it exists before applying again.")
+		return
+	}
+	plan.ID = types.StringValue(result.ID)
+	plan.CredentialWO = types.StringNull()
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	resp.Diagnostics.AddWarning("Audit destination ID captured", "Check the destination in shipd and refresh Terraform state before retrying. A failed create can leave the resource marked for replacement.")
 }
 
 func (r *auditDestinationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -222,7 +262,7 @@ func (r *auditDestinationResource) Read(ctx context.Context, req resource.ReadRe
 	case err != nil:
 		resp.Diagnostics.AddError("Cannot read audit destination", auditDiagnostic(err, "organization:update", false))
 	default:
-		setAuditDestinationState(ctx, &resp.State, state.Type, state.CredentialVersion, result, &resp.Diagnostics)
+		setAuditDestinationState(ctx, &resp.State, state, result, &resp.Diagnostics)
 	}
 }
 
@@ -233,6 +273,7 @@ func (r *auditDestinationResource) Update(ctx context.Context, req resource.Upda
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	validateAuditDestinationConfig(plan, &resp.Diagnostics)
 
 	var secret types.String
 	rotate := destinationCredentialChanged(plan, prior)
@@ -245,6 +286,23 @@ func (r *auditDestinationResource) Update(ctx context.Context, req resource.Upda
 	var config *client.AuditDestinationConfig
 	if rotate || !plan.sameDestinationConfig(prior) {
 		value := plan.destinationConfig(ctx, &resp.Diagnostics)
+		switch plan.Type.ValueString() {
+		case "webhook":
+			if plan.Events.Equal(prior.Events) {
+				value.Events = nil
+			} else if plan.Events.IsNull() {
+				// An empty patch list clears a previously installed filter.
+				value.Events = &[]string{}
+			}
+		case "s3":
+			if plan.Prefix.Equal(prior.Prefix) {
+				value.Prefix = nil
+			} else if plan.Prefix.IsNull() {
+				// The API merges updates, so resetting a custom prefix needs an explicit value.
+				prefix := defaultAuditS3Prefix
+				value.Prefix = &prefix
+			}
+		}
 		config = &value
 	}
 	if resp.Diagnostics.HasError() {
@@ -266,10 +324,15 @@ func (r *auditDestinationResource) Update(ctx context.Context, req resource.Upda
 	}
 	result, err := r.client.UpdateAuditDestination(ctx, prior.ID.ValueString(), plan.Type.ValueString(), name, enabled, config, secret.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Cannot update audit destination", auditDiagnostic(err, "organization:update", false))
+		detail := auditDiagnostic(err, "organization:update", false)
+		var apiErr *client.APIError
+		if rotate && (!errors.As(err, &apiErr) || apiErr.Status >= http.StatusInternalServerError) {
+			detail += " Verify the active credential with the receiver. If needed, retry with the same credential version and secret."
+		}
+		resp.Diagnostics.AddError("Cannot update audit destination", detail)
 		return
 	}
-	setAuditDestinationState(ctx, &resp.State, plan.Type, plan.CredentialVersion, result, &resp.Diagnostics)
+	setAuditDestinationState(ctx, &resp.State, plan, result, &resp.Diagnostics)
 }
 
 func (r *auditDestinationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -324,32 +387,33 @@ func (m auditDestinationModel) sameDestinationConfig(prior auditDestinationModel
 func (m auditDestinationModel) destinationConfig(ctx context.Context, diagnostics *diag.Diagnostics) client.AuditDestinationConfig {
 	switch m.Type.ValueString() {
 	case "webhook":
-		events := []string{}
+		config := client.AuditDestinationConfig{URL: m.URL.ValueString()}
 		if !m.Events.IsNull() {
+			var events []string
 			diagnostics.Append(m.Events.ElementsAs(ctx, &events, false)...)
+			config.Events = &events
 		}
-		return client.AuditDestinationConfig{URL: m.URL.ValueString(), Events: &events}
+		return config
 	case "siem":
 		return client.AuditDestinationConfig{URL: m.URL.ValueString(), Format: m.Format.ValueString()}
 	default: // S3; type is validated by the schema.
-		prefix := m.Prefix.ValueString()
 		return client.AuditDestinationConfig{
 			Endpoint: m.Endpoint.ValueString(), Region: m.Region.ValueString(), Bucket: m.Bucket.ValueString(),
-			Prefix: &prefix, AccessKeyID: m.AccessKeyID.ValueString(),
+			Prefix: m.Prefix.ValueStringPointer(), AccessKeyID: m.AccessKeyID.ValueString(),
 		}
 	}
 }
 
-func setAuditDestinationState(ctx context.Context, target *tfsdk.State, expectedType, version types.String, result client.AuditDestination, diagnostics *diag.Diagnostics) {
+func setAuditDestinationState(ctx context.Context, target *tfsdk.State, model auditDestinationModel, result client.AuditDestination, diagnostics *diag.Diagnostics) {
 	if result.ID == "" || result.Name == "" || result.Enabled == nil ||
-		!expectedType.IsNull() && result.Type != expectedType.ValueString() {
+		!model.Type.IsNull() && result.Type != model.Type.ValueString() {
 		diagnostics.AddError("Invalid audit destination response", "The API did not return a complete destination of the expected type.")
 		return
 	}
 	state := auditDestinationModel{
 		ID: types.StringValue(result.ID), Type: types.StringValue(result.Type),
 		Name: types.StringValue(result.Name), Enabled: types.BoolPointerValue(result.Enabled),
-		CredentialVersion: version, Events: types.SetNull(types.StringType),
+		CredentialVersion: model.CredentialVersion, Events: types.SetNull(types.StringType),
 	}
 	address := result.Config.URL
 	switch result.Type {
@@ -374,8 +438,9 @@ func setAuditDestinationState(ctx context.Context, target *tfsdk.State, expected
 		address = result.Config.Endpoint
 		state.Endpoint, state.Region = types.StringValue(address), types.StringValue(result.Config.Region)
 		state.Bucket, state.AccessKeyID = types.StringValue(result.Config.Bucket), types.StringValue(result.Config.AccessKeyID)
-		if result.Config.Prefix != nil && *result.Config.Prefix != "" {
-			state.Prefix = types.StringValue(*result.Config.Prefix)
+		if prefix := result.Config.Prefix; prefix != nil && *prefix != "" &&
+			(*prefix != defaultAuditS3Prefix || !model.Prefix.IsNull()) {
+			state.Prefix = types.StringValue(*prefix)
 		}
 	default:
 		diagnostics.AddError("Unsupported audit destination", "Use a webhook, SIEM, or S3 audit destination.")
@@ -387,22 +452,6 @@ func setAuditDestinationState(ctx context.Context, target *tfsdk.State, expected
 	}
 	if !diagnostics.HasError() {
 		diagnostics.Append(target.Set(ctx, state)...)
-	}
-}
-
-type auditDestinationURLValidator struct{}
-
-func (auditDestinationURLValidator) Description(context.Context) string {
-	return "Use an absolute HTTP(S) URL without credentials, a query, or a fragment."
-}
-
-func (v auditDestinationURLValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v auditDestinationURLValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if !req.ConfigValue.IsNull() && !req.ConfigValue.IsUnknown() && !validAuditDestinationURL(req.ConfigValue.ValueString()) {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid audit destination URL", v.Description(ctx))
 	}
 }
 

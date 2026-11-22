@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/alasti-company/terraform-provider-shipd/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -24,6 +26,13 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 		"unmanaged": {
 			"id": "unmanaged", "type": "webhook", "name": "Unmanaged", "enabled": true,
 			"config": map[string]any{"url": "https://receiver.example/unmanaged", "secret": "unmanaged-secret"},
+		},
+		"imported": {
+			"id": "imported", "type": "s3", "name": "Imported", "enabled": true,
+			"config": map[string]any{
+				"endpoint": "https://receiver.example/imported", "region": "auto", "bucket": "test",
+				"accessKeyId": "imported-key", "secretAccessKey": "imported-secret", "prefix": "",
+			},
 		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,11 +88,21 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 			}
 			kind := input["type"].(string)
 			field := map[string]string{"webhook": "secret", "siem": "token", "s3": "secretAccessKey"}[kind]
-			if input["config"].(map[string]any)[field] != "initial-fixture-secret" {
+			config := input["config"].(map[string]any)
+			if config[field] != "initial-fixture-secret" {
 				t.Errorf("missing credential on %s creation", kind)
+			}
+			for _, field := range []string{"prefix", "events"} {
+				if _, sent := config[field]; sent {
+					t.Errorf("create unexpectedly sent %s for %s", field, kind)
+				}
 			}
 			input["id"] = kind
 			destinations[kind] = input
+			if kind == "webhook" {
+				write(map[string]string{"id": kind})
+				return
+			}
 			write(input)
 		case "/api/v1/rpc/audit/updateDestination":
 			destinationUpdates++
@@ -97,13 +116,25 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 			}
 			if config, ok := input["config"]; ok {
 				fields := config.(map[string]any)
-				if id == "webhook" && fields["secret"] != "rotated-fixture-secret" {
-					t.Error("webhook rotation did not supply the new secret")
-				}
-				if id == "s3" && (fields["secretAccessKey"] != nil || fields["prefix"] != "") {
-					t.Error("S3 prefix removal must clear the prefix and preserve the credential")
-				}
 				old := destination["config"].(map[string]any)
+				switch id {
+				case "webhook":
+					events, hasEvents := fields["events"].([]any)
+					if old["events"] != nil && (fields["secret"] != "rotated-fixture-secret" || !hasEvents || len(events) != 0) {
+						t.Error("webhook rotation did not supply the new secret and clear the filter")
+					}
+				case "s3":
+					if fields["secretAccessKey"] != nil || old["prefix"] == "audit" && fields["prefix"] != "shipd-audit" {
+						t.Error("S3 prefix removal must restore the default and preserve the credential")
+					}
+				case "imported":
+					if _, sent := fields["prefix"]; sent || fields["secretAccessKey"] != "rotated-fixture-secret" {
+						t.Error("rotation after import must preserve the existing prefix")
+					}
+				}
+				if r.Header.Get("Idempotency-Key") != "" {
+					t.Error("destination config update requested durable replay")
+				}
 				for key, value := range fields {
 					old[key] = value
 				}
@@ -124,7 +155,7 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	initial := fmt.Sprintf(`
+	withCustomFields := fmt.Sprintf(`
 provider "shipd" {
   api_url = %q
   api_key = "test-token"
@@ -166,14 +197,28 @@ resource "shipd_audit_destination" "s3" {
   credential_version = "v1"
   credential_wo = var.credential
 }
+import {
+  to = shipd_audit_destination.imported
+  id = "imported"
+}
+resource "shipd_audit_destination" "imported" {
+  type = "s3"
+  name = "Imported"
+  endpoint = "https://receiver.example/imported"
+  region = "auto"
+  bucket = "test"
+  access_key_id = "imported-key"
+}
 `, server.URL)
+	initial := strings.NewReplacer("  events = [\"flag.created\"]\n", "", "  prefix = \"audit\"\n", "").Replace(withCustomFields)
 	updated := strings.NewReplacer(
 		"retention_days = 30", "retention_days = 0",
 		"initial-fixture-secret", "rotated-fixture-secret",
 		`events = ["flag.created"]`+"\n  "+`credential_version = "v1"`, `credential_version = "v2"`,
 		"Original SIEM", "Updated SIEM",
 		`prefix = "audit"`, "",
-	).Replace(initial)
+		`access_key_id = "imported-key"`, "access_key_id = \"imported-key\"\n  credential_version = \"v1\"\n  credential_wo = var.credential",
+	).Replace(withCustomFields)
 	destinationChecks := func(version string) resource.TestCheckFunc {
 		checks := []resource.TestCheckFunc{
 			resource.TestCheckResourceAttr(settings, "minimum_retention_days", "14"),
@@ -196,7 +241,10 @@ resource "shipd_audit_destination" "s3" {
 			return nil
 		}
 	}
-	steps := []resource.TestStep{{Config: initial, Check: resource.ComposeTestCheckFunc(destinationChecks("v1"), checkCounts(0, 0))}}
+	steps := []resource.TestStep{
+		{Config: initial, Check: resource.ComposeTestCheckFunc(destinationChecks("v1"), checkCounts(0, 0))},
+		{Config: withCustomFields, Check: checkCounts(0, 2)},
+	}
 	steps = append(steps, resource.TestStep{ResourceName: settings, ImportState: true, ImportStateVerify: true, ImportStateId: "test-org"})
 	for _, kind := range []string{"webhook", "siem", "s3"} {
 		steps = append(steps, resource.TestStep{
@@ -205,19 +253,21 @@ resource "shipd_audit_destination" "s3" {
 		})
 	}
 	steps = append(steps,
-		resource.TestStep{Config: updated, Check: resource.ComposeTestCheckFunc(destinationChecks("v2"), checkCounts(1, 3),
+		resource.TestStep{Config: updated, Check: resource.ComposeTestCheckFunc(destinationChecks("v2"), checkCounts(1, 6),
 			resource.TestCheckResourceAttr(settings, "retention_days", "0"),
 			resource.TestCheckNoResourceAttr("shipd_audit_destination.webhook", "events"),
 			resource.TestCheckNoResourceAttr("shipd_audit_destination.s3", "prefix"),
+			resource.TestCheckNoResourceAttr("shipd_audit_destination.imported", "prefix"),
+			resource.TestCheckResourceAttr("shipd_audit_destination.imported", "credential_version", "v1"),
 		)},
-		resource.TestStep{Config: updated, Check: checkCounts(1, 3)},
+		resource.TestStep{Config: updated, Check: checkCounts(1, 6)},
 		resource.TestStep{
 			Config:   strings.ReplaceAll(updated, `access_key_id = "fixture-access-key-id"`, `access_key_id = "new-identifier"`),
 			PlanOnly: true, ExpectError: regexp.MustCompile("Missing S3 credential rotation"),
 		},
 		resource.TestStep{
 			Config: strings.Replace(updated, "  credential_version = \"v2\"\n  credential_wo = var.credential\n", "", 1),
-			Check:  resource.ComposeTestCheckFunc(checkCounts(1, 3), resource.TestCheckNoResourceAttr("shipd_audit_destination.webhook", "credential_version")),
+			Check:  resource.ComposeTestCheckFunc(checkCounts(1, 6), resource.TestCheckNoResourceAttr("shipd_audit_destination.webhook", "credential_version")),
 		},
 	)
 	resource.Test(t, resource.TestCase{
@@ -225,13 +275,35 @@ resource "shipd_audit_destination" "s3" {
 		CheckDestroy: func(_ *terraform.State) error {
 			mu.Lock()
 			defer mu.Unlock()
-			if retention != nil || retentionUpdates != 1 || destinationDeletes != 3 ||
+			if retention != nil || retentionUpdates != 1 || destinationDeletes != 4 ||
 				len(destinations) != 1 || destinations["unmanaged"]["name"] != "Unmanaged" {
 				return fmt.Errorf("destroy changed retention or an unrelated destination")
 			}
 			return nil
 		},
 	})
+}
+
+func TestAuditDestinationDefersUnknownSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		format types.String
+		fails  bool
+	}{
+		{"unknown", types.StringUnknown(), false},
+		{"omitted", types.StringNull(), false},
+		{"present", types.StringValue("json"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var diagnostics diag.Diagnostics
+			validateAuditDestinationConfig(auditDestinationModel{
+				Type: types.StringValue("webhook"), URL: types.StringValue("https://receiver.example"), Format: tc.format,
+			}, &diagnostics)
+			if diagnostics.HasError() != tc.fails {
+				t.Fatalf("unexpected diagnostics: %v", diagnostics)
+			}
+		})
+	}
 }
 
 func TestAuditDiagnostics(t *testing.T) {

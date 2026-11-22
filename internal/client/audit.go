@@ -134,7 +134,9 @@ func (c *Client) UpdateAuditDestination(ctx context.Context, id, kind string, na
 		input.Config = &writeConfig
 	}
 	var result AuditDestination
-	err := c.RPC(ctx, "audit/updateDestination", input, &result, true)
+	// Keep destination config writes out of durable replay, even when the API
+	// response includes stored credential fields that were omitted in the patch.
+	err := c.rpc(ctx, "audit/updateDestination", input, &result, false, rpcOptions{attempts: 1})
 	if err == nil && result.ID != id {
 		err = errors.New("shipd returned a different audit destination than requested")
 	}

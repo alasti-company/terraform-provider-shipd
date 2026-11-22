@@ -121,6 +121,8 @@ Supply the webhook signing secret, SIEM token, or S3 secret access key in
 the version, destination URLs, and S3 access key ID in state. URLs and the
 access key ID are marked sensitive and still appear in raw state. Use URLs
 with no embedded secrets and without query strings or fragments.
+Use HTTPS endpoints. Shipd allows HTTP only for hosts explicitly allowlisted
+by the API operator for that deployment.
 
 For an existing destination, import it and omit both credential arguments to
 keep the credential already stored by shipd. To rotate it, set or change
