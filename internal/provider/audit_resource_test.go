@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -31,7 +32,7 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 			"id": "imported", "type": "s3", "name": "Imported", "enabled": true,
 			"config": map[string]any{
 				"endpoint": "https://receiver.example/imported", "region": "auto", "bucket": "test",
-				"accessKeyId": "imported-key", "secretAccessKey": "imported-secret", "prefix": "",
+				"accessKeyId": "imported-key", "secretAccessKey": "imported-secret",
 			},
 		},
 	}
@@ -61,6 +62,17 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 				"minimumRetentionDays": 14, "legalHold": false,
 			})
 		}
+		publicDestination := func(destination map[string]any) map[string]any {
+			// Shipd returns an empty string when the stored S3 prefix is absent.
+			config := destination["config"].(map[string]any)
+			if destination["type"] != "s3" || config["prefix"] != nil {
+				return destination
+			}
+			result, fields := maps.Clone(destination), maps.Clone(config)
+			fields["prefix"] = ""
+			result["config"] = fields
+			return result
+		}
 		switch r.URL.Path {
 		case "/api/v1/rpc/me":
 			write(map[string]any{"organization": map[string]string{"id": "test-org"}})
@@ -78,7 +90,7 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 			list := make([]map[string]any, 0, len(destinations))
 			for _, destination := range destinations {
 				// Echo credential fields to verify that the provider ignores them.
-				list = append(list, destination)
+				list = append(list, publicDestination(destination))
 			}
 			write(list)
 		case "/api/v1/rpc/audit/createDestination":
@@ -103,7 +115,7 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 				write(map[string]string{"id": kind})
 				return
 			}
-			write(input)
+			write(publicDestination(input))
 		case "/api/v1/rpc/audit/updateDestination":
 			destinationUpdates++
 			id := input["id"].(string)
@@ -128,8 +140,10 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 						t.Error("S3 prefix removal must restore the default and preserve the credential")
 					}
 				case "imported":
-					if _, sent := fields["prefix"]; sent || fields["secretAccessKey"] != "rotated-fixture-secret" {
-						t.Error("rotation after import must preserve the existing prefix")
+					_, stored := old["prefix"]
+					_, sent := fields["prefix"]
+					if stored || sent || fields["secretAccessKey"] != "rotated-fixture-secret" {
+						t.Error("rotation after import must leave the stored prefix absent")
 					}
 				}
 				if r.Header.Get("Idempotency-Key") != "" {
@@ -144,7 +158,7 @@ func TestTerraformAuditLifecycle(t *testing.T) {
 			if id == "siem" && (len(input) != 2 || input["name"] != "Updated SIEM") {
 				t.Error("SIEM name update sent unrelated fields")
 			}
-			write(destination)
+			write(publicDestination(destination))
 		case "/api/v1/rpc/audit/deleteDestination":
 			destinationDeletes++
 			delete(destinations, input["id"].(string))
