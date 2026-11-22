@@ -1,0 +1,20 @@
+internal/provider/approval_policy_resource_test.go
+  s_086e1423e63dd5::t_030acb58303770 50-55,82-85,91-94,120-121,124,126,129-138,164-176,181
+  s_086e1423e63dd5::t_049842e8b144a1 139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8cbd0ac66c7a80cfc4e5d89928867e18b69cbd1c",
+  "prompts": {},
+  "sessions": {
+    "s_086e1423e63dd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a2010d-0b72-7f33-a3f8-0291e640417c",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
