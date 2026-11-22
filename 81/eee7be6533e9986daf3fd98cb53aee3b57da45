@@ -1,0 +1,19 @@
+internal/provider/audit_resource_test.go
+  s_29c5b7b2b45ff0::t_5ecf5e3033d6de 6,35,65-75,93,118,143-146,161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "81eee7be6533e9986daf3fd98cb53aee3b57da45",
+  "prompts": {},
+  "sessions": {
+    "s_29c5b7b2b45ff0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a20227-b5ef-7832-af83-bb8b1ef74377",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
