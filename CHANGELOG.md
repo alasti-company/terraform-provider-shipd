@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/alasti-company/terraform-provider-shipd/compare/v0.4.0...v0.5.0) (2026-11-22)
+
+
+### Features
+
+* manage approval policies with Terraform ([#13](https://github.com/alasti-company/terraform-provider-shipd/issues/13)) ([7fce459](https://github.com/alasti-company/terraform-provider-shipd/commit/7fce459fcd3f09950f0021a0678cc7fb9ee446fe))
+
 ## [0.4.0](https://github.com/alasti-company/terraform-provider-shipd/compare/v0.3.0...v0.4.0) (2026-11-20)
 
 
