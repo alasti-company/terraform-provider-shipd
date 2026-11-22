@@ -159,9 +159,10 @@ policies, Terraform can edit metadata, extend the match, and strengthen review
 requirements while keeping the priority fixed. Shipd checks whether a newly
 enabled or expanded policy could override a stricter policy. An organization
 admin or owner must weaken, reprioritize, or disable an enabled policy in the
-dashboard. To destroy an enabled policy, an admin or owner first disables it,
-then Terraform refreshes and permanently deletes the disabled policy. If your
-state is stale, refresh and plan again before applying.
+dashboard. To destroy an enabled policy, an admin or owner first disables it.
+Run `terraform apply -refresh-only` to record the disabled policy and its latest
+version in state before planning the deletion. Destroy permanently deletes
+the disabled policy.
 
 Policy writes make existing pending requests in the organization stale. Reviewers
 approve or reject newly submitted requests in shipd. Protected operations still

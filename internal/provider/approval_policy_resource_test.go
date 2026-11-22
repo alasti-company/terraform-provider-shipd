@@ -88,8 +88,9 @@ func TestTerraformApprovalPolicyLifecycle(t *testing.T) {
 				write(map[string]bool{"ok": true})
 				return
 			}
-			if policy.Enabled && (!input.Enabled || input.RequiredApprovals < policy.RequiredApprovals) {
-				forbidden("A service account cannot weaken or disable an enabled approval policy.")
+			if policy.Enabled && (!input.Enabled || input.RequiredApprovals < policy.RequiredApprovals ||
+				input.Priority != policy.Priority) {
+				forbidden("A service account cannot weaken, disable, or change the priority of an enabled approval policy.")
 				return
 			}
 			updates++
@@ -117,25 +118,27 @@ resource "shipd_approval_policy" "test" {
   reviewer_team_ids      = ["team-a", "team-b"]
 }
 `
-	policyConfig := func(enabled bool, requiredApprovals int) string {
+	policyConfig := func(enabled bool, requiredApprovals, priority int) string {
 		return provider + fmt.Sprintf(`
 resource "shipd_approval_policy" "test" {
   name               = "Staged review"
   enabled            = %t
+  priority           = %d
   project_ids        = ["project-a", "project-b"]
   required_approvals = %d
   reviewer_roles     = ["owner"]
 }
-`, enabled, requiredApprovals)
+`, enabled, priority, requiredApprovals)
 	}
-	changed := policyConfig(false, 2)
-	strengthened := policyConfig(true, 3)
+	changed := policyConfig(false, 2, 100)
+	strengthened := policyConfig(true, 3, 100)
 	enabledPolicy := resource.ComposeTestCheckFunc(
 		resource.TestCheckResourceAttr(address, "id", "created"),
 		resource.TestCheckResourceAttr(address, "enabled", "true"),
 		resource.TestCheckResourceAttr(address, "required_approvals", "3"),
+		resource.TestCheckResourceAttr(address, "priority", "100"),
 	)
-	deniedUpdate := regexp.MustCompile(`(?s)Cannot update approval policy.*cannot weaken or disable`)
+	deniedUpdate := regexp.MustCompile(`(?s)Cannot update approval policy.*cannot\s+weaken,\s+disable,\s+or\s+change\s+the\s+priority`)
 	deniedDestroy := regexp.MustCompile(`(?s)Cannot delete approval policy.*cannot delete an enabled\s+approval policy`)
 	resource.Test(t, resource.TestCase{
 		IsUnitTest: true, ProtoV6ProviderFactories: factories(),
@@ -161,19 +164,21 @@ import {
 			{ResourceName: address, ImportState: true, ImportStateVerify: true},
 			{Config: provider},
 			{Config: changed, Check: resource.TestCheckResourceAttr(address, "id", "created")},
-			{Config: policyConfig(true, 2), Check: resource.TestCheckResourceAttr(address, "enabled", "true")},
+			{Config: policyConfig(true, 2, 100), Check: resource.TestCheckResourceAttr(address, "enabled", "true")},
 			{Config: strengthened, Check: enabledPolicy},
-			{Config: policyConfig(true, 1), ExpectError: deniedUpdate},
-			{Config: policyConfig(false, 3), ExpectError: deniedUpdate},
+			{Config: policyConfig(true, 1, 100), ExpectError: deniedUpdate},
+			{Config: policyConfig(false, 3, 100), ExpectError: deniedUpdate},
+			{Config: policyConfig(true, 3, 99), ExpectError: deniedUpdate},
 			{Config: provider, ExpectError: deniedDestroy},
 			{Config: strengthened, PlanOnly: true, Check: enabledPolicy},
-			{Config: provider, PreConfig: func() {
+			{RefreshState: true, ExpectNonEmptyPlan: true, Check: resource.TestCheckResourceAttr(address, "enabled", "false"), PreConfig: func() {
 				mu.Lock()
 				defer mu.Unlock()
 				// A human disables the policy outside Terraform before destroy.
 				policy.Enabled = false
 				policy.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 			}},
+			{Config: provider},
 		},
 		CheckDestroy: func(_ *terraform.State) error {
 			mu.Lock()
