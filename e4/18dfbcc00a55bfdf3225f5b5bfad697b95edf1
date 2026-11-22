@@ -1,0 +1,55 @@
+examples/resources/shipd_audit_settings/import.sh
+  s_29c5b7b2b45ff0::t_bc3569fbdd1749 1
+docs/resources/audit_settings.md
+  s_29c5b7b2b45ff0::t_f222c231d9b572 1-5,7-10,12-45
+  s_29c5b7b2b45ff0::t_5c6a512fc6ec52 6,11
+internal/provider/audit_settings_resource.go
+  s_29c5b7b2b45ff0::t_181279ac544d38 1-18,20-45,47-59,61-122,124-205
+  s_29c5b7b2b45ff0::t_6195f4ff59992a 60
+  s_29c5b7b2b45ff0::t_bd1ff6b648fe3e 19,46,123
+examples/resources/shipd_audit_destination/import.sh
+  s_29c5b7b2b45ff0::t_bc3569fbdd1749 1-2
+internal/provider/provider.go
+  s_29c5b7b2b45ff0::t_7eb9455b079104 30,90-91
+docs/resources/audit_destination.md
+  s_29c5b7b2b45ff0::t_5c6a512fc6ec52 6,11
+  s_29c5b7b2b45ff0::t_f222c231d9b572 1-5,7-10,12-102
+docs/index.md
+  s_29c5b7b2b45ff0::t_f222c231d9b572 5,10
+examples/resources/shipd_audit_settings/resource.tf
+  s_29c5b7b2b45ff0::t_bc3569fbdd1749 1-4
+internal/provider/audit_destination_resource.go
+  s_29c5b7b2b45ff0::t_d9f16a9382b95d 31
+  s_29c5b7b2b45ff0::t_49256d0ffee62d 1-21,23-30,32-72,75-175,177-190,192-206,210-240,242-302,304-306,308-342,344-414
+  s_29c5b7b2b45ff0::t_bd1ff6b648fe3e 22,73-74,176,191,207-209,241,303,307,343
+internal/client/audit.go
+  s_29c5b7b2b45ff0::t_6aa2279e727356 1-164
+README.md
+  s_29c5b7b2b45ff0::t_093f32af789121 4
+  s_29c5b7b2b45ff0::t_bd1ff6b648fe3e 5-8,95-96,102-103
+  s_29c5b7b2b45ff0::t_f9594d3482bbe4 85-94,97-101,104-136
+internal/provider/audit_resource_test.go
+  s_29c5b7b2b45ff0::t_d055ebbc984db4 1-12,14-214,216-217,222-234,258
+  s_29c5b7b2b45ff0::t_79442f7ece8a62 215
+  s_29c5b7b2b45ff0::t_5133044ec589b0 13,218-221,235-257
+examples/resources/shipd_audit_destination/resource.tf
+  s_29c5b7b2b45ff0::t_bc3569fbdd1749 1-47
+internal/client/audit_test.go
+  s_29c5b7b2b45ff0::t_5133044ec589b0 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e418dfbcc00a55bfdf3225f5b5bfad697b95edf1",
+  "prompts": {},
+  "sessions": {
+    "s_29c5b7b2b45ff0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a20227-b5ef-7832-af83-bb8b1ef74377",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kourosh Alasti <coding@kouroshalasti.com>"
+    }
+  }
+}
