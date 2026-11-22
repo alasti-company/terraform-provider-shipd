@@ -66,5 +66,8 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-terraform import shipd_approval_policy.production POLICY_ID
+terraform import \
+  -var='project_id=PROJECT_ID' \
+  -var='production_environment_id=ENVIRONMENT_ID' \
+  shipd_approval_policy.production POLICY_ID
 ```

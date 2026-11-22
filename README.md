@@ -151,7 +151,10 @@ Sets ignore order, and an omitted production filter is distinct from
 `environment_production = false`.
 
 ```sh
-terraform import shipd_approval_policy.production POLICY_ID
+terraform import \
+  -var='project_id=PROJECT_ID' \
+  -var='production_environment_id=ENVIRONMENT_ID' \
+  shipd_approval_policy.production POLICY_ID
 ```
 
 Update disabled policies freely or enable them from Terraform. For enabled
