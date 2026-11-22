@@ -1,10 +1,11 @@
 # shipd Terraform provider
 
 The Terraform provider at `alasti-company/shipd` manages projects, project access
-grants, environments, approval policies, service accounts, webhooks, SDK keys,
-and workload service account tokens. It also provides project and environment
-data sources. Credential resources require a provider release that includes
-them and a shipd API with credential registration support.
+grants, environments, approval policies, audit settings and destinations,
+service accounts, webhooks, SDK keys, and workload service account tokens.
+It also provides project and environment data sources. Credential resources
+require a provider release that includes them and a shipd API with credential
+registration support.
 
 ## Local installation
 
@@ -80,6 +81,60 @@ account ID and token ID.
 
 The `shipd_service_account` resource requires a shipd API that supports
 service-account administration with machine credentials.
+
+## Audit settings and export destinations
+
+Use one [`shipd_audit_settings`](docs/resources/audit_settings.md) resource per
+organization. It manages requested retention and reads the default, protected
+minimum, and legal hold from shipd. Use `retention_days = 0` for unlimited
+retention when the organization has that entitlement. Destroy removes the
+singleton from Terraform state and leaves the policy in effect. Import it by
+organization ID.
+
+Use one [`shipd_audit_destination`](docs/resources/audit_destination.md) resource
+per webhook, SIEM, or S3-compatible destination. Give each destination one
+configuration owner and import it by destination ID.
+Destroy deletes that destination. Terraform manages configuration only. Use
+shipd to view delivery history, send a test, or generate a one-off export.
+
+Issue a dedicated organization-wide service-account token without project or
+environment bindings. Set the provider's `organization_id` or
+`SHIPD_ORGANIZATION_ID` to verify the token's organization. Grant these scopes
+to manage both resources.
+
+```json
+{
+  "audit": ["read"],
+  "organization": ["update"]
+}
+```
+
+`audit:read` covers settings import and refresh. `organization:update` covers
+retention changes and all destination operations, including import and refresh.
+Destination access and retention changes require the audit log entitlement
+available on Teams and Enterprise. Plans also cap retention and the number of
+destinations. A protected minimum or legal hold can restrict retention changes.
+
+Supply the webhook signing secret, SIEM token, or S3 secret access key in
+`credential_wo` from an ephemeral variable. Use a nonsecret
+`credential_version` to select a pinned secret-store version. Terraform stores
+the version, destination URLs, and S3 access key ID in state. URLs and the
+access key ID are marked sensitive and still appear in raw state. Use URLs
+with no embedded secrets and without query strings or fragments.
+Use HTTPS endpoints. Shipd allows HTTP only for hosts explicitly allowlisted
+by the API operator for that deployment.
+
+For an existing destination, import it and omit both credential arguments to
+keep the credential already stored by shipd. To rotate it, set or change
+`credential_version` and supply the replacement credential. An S3 access key ID
+change requires the matching new secret and a new version. Coordinate rotation
+with the receiver because shipd switches to the new credential when the update
+succeeds.
+
+Destination creation makes one API request. If apply was interrupted or the
+response was lost, check the destination list in shipd. Import the matching ID
+if it exists, adopting its existing credential. If the destination was never
+created, apply again with the original inputs.
 
 ## Project access grants
 

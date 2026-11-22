@@ -27,7 +27,7 @@ func (p *shipdProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 	resp.Version = p.version
 }
 func (p *shipdProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{Description: "Manage shipd projects, project access grants, environments, approval policies, service accounts, webhooks, and credentials using the control-plane API.", Attributes: map[string]schema.Attribute{
+	resp.Schema = schema.Schema{Description: "Manage shipd projects, project access grants, environments, approval policies, audit settings and destinations, service accounts, webhooks, and credentials using the control-plane API.", Attributes: map[string]schema.Attribute{
 		"api_key":         schema.StringAttribute{Optional: true, Sensitive: true, Description: "Management key or service-account token. Defaults to SHIPD_API_KEY; use an organization-wide service-account token to create projects."},
 		"api_url":         schema.StringAttribute{Optional: true, Description: "API base URL. HTTPS is required except for localhost or loopback IP addresses. Defaults to SHIPD_API_URL or https://api.useshipd.com."},
 		"organization_id": schema.StringAttribute{Optional: true, Description: "Optional guard against using credentials for the wrong organization. Does not switch organizations. Defaults to SHIPD_ORGANIZATION_ID."},
@@ -87,6 +87,8 @@ func (p *shipdProvider) Resources(_ context.Context) []func() resource.Resource 
 		func() resource.Resource { return &projectGrantResource{} },
 		func() resource.Resource { return &environmentResource{} },
 		func() resource.Resource { return &approvalPolicyResource{} },
+		func() resource.Resource { return &auditSettingsResource{} },
+		func() resource.Resource { return &auditDestinationResource{} },
 		func() resource.Resource { return &serviceAccountResource{} },
 		func() resource.Resource { return &credentialResource{sdk: true} },
 		func() resource.Resource { return &credentialResource{} },
