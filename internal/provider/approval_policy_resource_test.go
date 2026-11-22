@@ -47,6 +47,12 @@ func TestTerraformApprovalPolicyLifecycle(t *testing.T) {
 		write := func(value any) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": value})
 		}
+		forbidden := func(message string) {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]string{"code": "forbidden", "message": message},
+			})
+		}
 		switch r.URL.Path {
 		case "/api/v1/rpc/approval/listPolicies":
 			out := []*client.ApprovalPolicy{}
@@ -73,9 +79,17 @@ func TestTerraformApprovalPolicyLifecycle(t *testing.T) {
 				return
 			}
 			if r.URL.Path == "/api/v1/rpc/approval/deletePolicyConfig" {
+				if policy.Enabled {
+					forbidden("A service account cannot delete an enabled approval policy.")
+					return
+				}
 				deletes++
 				policy = nil
 				write(map[string]bool{"ok": true})
+				return
+			}
+			if policy.Enabled && (!input.Enabled || input.RequiredApprovals < policy.RequiredApprovals) {
+				forbidden("A service account cannot weaken or disable an enabled approval policy.")
 				return
 			}
 			updates++
@@ -103,15 +117,26 @@ resource "shipd_approval_policy" "test" {
   reviewer_team_ids      = ["team-a", "team-b"]
 }
 `
-	changed := provider + `
+	policyConfig := func(enabled bool, requiredApprovals int) string {
+		return provider + fmt.Sprintf(`
 resource "shipd_approval_policy" "test" {
   name               = "Staged review"
-  enabled            = false
+  enabled            = %t
   project_ids        = ["project-a", "project-b"]
-  required_approvals = 2
+  required_approvals = %d
   reviewer_roles     = ["owner"]
 }
-`
+`, enabled, requiredApprovals)
+	}
+	changed := policyConfig(false, 2)
+	strengthened := policyConfig(true, 3)
+	enabledPolicy := resource.ComposeTestCheckFunc(
+		resource.TestCheckResourceAttr(address, "id", "created"),
+		resource.TestCheckResourceAttr(address, "enabled", "true"),
+		resource.TestCheckResourceAttr(address, "required_approvals", "3"),
+	)
+	deniedUpdate := regexp.MustCompile(`(?s)Cannot update approval policy.*cannot weaken or disable`)
+	deniedDestroy := regexp.MustCompile(`(?s)Cannot delete approval policy.*cannot delete an enabled\s+approval policy`)
 	resource.Test(t, resource.TestCase{
 		IsUnitTest: true, ProtoV6ProviderFactories: factories(),
 		Steps: []resource.TestStep{
@@ -136,11 +161,24 @@ import {
 			{ResourceName: address, ImportState: true, ImportStateVerify: true},
 			{Config: provider},
 			{Config: changed, Check: resource.TestCheckResourceAttr(address, "id", "created")},
+			{Config: policyConfig(true, 2), Check: resource.TestCheckResourceAttr(address, "enabled", "true")},
+			{Config: strengthened, Check: enabledPolicy},
+			{Config: policyConfig(true, 1), ExpectError: deniedUpdate},
+			{Config: policyConfig(false, 3), ExpectError: deniedUpdate},
+			{Config: provider, ExpectError: deniedDestroy},
+			{Config: strengthened, PlanOnly: true, Check: enabledPolicy},
+			{Config: provider, PreConfig: func() {
+				mu.Lock()
+				defer mu.Unlock()
+				// A human disables the policy outside Terraform before destroy.
+				policy.Enabled = false
+				policy.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+			}},
 		},
 		CheckDestroy: func(_ *terraform.State) error {
 			mu.Lock()
 			defer mu.Unlock()
-			if policy != nil || creates != 1 || updates != 1 || deletes != 2 {
+			if policy != nil || creates != 1 || updates != 3 || deletes != 2 {
 				return fmt.Errorf("unexpected approval policy lifecycle counts: %d creates, %d updates, %d deletes", creates, updates, deletes)
 			}
 			return nil
