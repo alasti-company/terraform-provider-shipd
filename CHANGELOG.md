@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/alasti-company/terraform-provider-shipd/compare/v0.3.0...v0.4.0) (2026-11-20)
+
+
+### Features
+
+* manage project access grants with Terraform (SHIPD-302) ([#11](https://github.com/alasti-company/terraform-provider-shipd/issues/11)) ([4725318](https://github.com/alasti-company/terraform-provider-shipd/commit/47253182e7000c67be6949b711981b16f4997b28))
+
 ## [0.3.0](https://github.com/alasti-company/terraform-provider-shipd/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 
