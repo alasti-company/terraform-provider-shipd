@@ -1,10 +1,10 @@
 # shipd Terraform provider
 
 The Terraform provider at `alasti-company/shipd` manages projects, project access
-grants, environments, service accounts, webhooks, SDK keys, and workload service
-account tokens. It also provides project and environment data sources. Credential
-resources require a provider release that includes them and a shipd API with
-credential registration support.
+grants, environments, approval policies, service accounts, webhooks, SDK keys,
+and workload service account tokens. It also provides project and environment
+data sources. Credential resources require a provider release that includes
+them and a shipd API with credential registration support.
 
 ## Local installation
 
@@ -122,6 +122,51 @@ lost or invalid, the provider retries with the same idempotency key to recover
 the API's recorded result. If the create remains unconfirmed, check shipd and
 import the assignment if it exists. A create that encounters an existing
 assignment returns a conflict and shows its import ID.
+
+## Approval policies
+
+Use [`shipd_approval_policy`](docs/resources/approval_policy.md) to set the
+project and environment matches, minimum rollout increase, and reviewer
+requirements for one policy. The resource requires a shipd API that supports
+Terraform approval policies. Enterprise is required for creation and updates.
+
+Create a dedicated organization-wide service-account token with these scopes
+and leave its project and environment bindings empty. Set
+`SHIPD_ORGANIZATION_ID` to the intended organization as a credential guard.
+
+```json
+{
+  "approval_policy": ["read", "update"]
+}
+```
+
+Use `read` for import and refresh, and `update` for writes. The policy's project
+and environment IDs determine where it applies. When both sets are supplied,
+each environment must belong to a selected project. Either empty set leaves
+that dimension unrestricted. Matching by client source or last writer is
+unsupported.
+
+Import an existing policy by ID and declare its current settings in Terraform.
+Sets ignore order, and an omitted production filter is distinct from
+`environment_production = false`.
+
+```sh
+terraform import shipd_approval_policy.production POLICY_ID
+```
+
+Update disabled policies freely or enable them from Terraform. For enabled
+policies, Terraform can edit metadata, extend the match, and strengthen review
+requirements while keeping the priority fixed. Shipd checks whether a newly
+enabled or expanded policy could override a stricter policy. An organization
+admin or owner must weaken, reprioritize, or disable an enabled policy in the
+dashboard. To destroy an enabled policy, an admin or owner first disables it,
+then Terraform refreshes and permanently deletes the disabled policy. If your
+state is stale, refresh and plan again before applying.
+
+Policy writes make existing pending requests in the organization stale. Reviewers
+approve or reject newly submitted requests in shipd. Protected operations still
+use Shipd's approval checks. If a create was interrupted before Terraform saved
+state, find the policy in Shipd and import it before retrying.
 
 ## Webhook configuration
 

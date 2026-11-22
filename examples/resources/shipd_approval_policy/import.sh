@@ -1,0 +1,1 @@
+terraform import shipd_approval_policy.production POLICY_ID
